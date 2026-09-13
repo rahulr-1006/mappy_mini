@@ -6,15 +6,26 @@ definition diagram, traces one to the other, and meters what the generation
 cost in tokens, seconds, and dollars. This transforms previously manual systems engineering processes into efficient and engineered models.
 Hope you enjoy the read and get a chance to test it out on your local machine!
 
-Four things happen to every generated artifact:
+Conversation is the way in. You describe a system in chat; it retrieves from
+the project knowledge base first, asks about whatever the documents do not
+settle, and drafts requirements grounded in what the documents actually say.
+Those requirements are the working set — editable by hand — and the block
+diagram is generated from them with no second prompt. Committing anything to
+the model re-indexes it, so what the tool generates becomes what the tool
+retrieves.
 
-1. **Lexical validation** against the INCOSE writing rules, with failures
+Five things happen to every generated artifact:
+
+1. **Retrieval** over two sources — system documents you load, and the MBSE
+   model being built — so generation starts from project fact rather than from
+   the sentence it was handed.
+2. **Lexical validation** against the INCOSE writing rules, with failures
    driving a targeted rewrite rather than a rejection.
-2. **Semantic review** by a second model, scoring what a regex cannot see, such as
+3. **Semantic review** by a second model, scoring what a regex cannot see, such as
    whether a requirement is singular, verifiable, and implementation-free.
-3. **Traceability** linking requirements to the design elements that satisfy
+4. **Traceability** linking requirements to the design elements that satisfy
    them, which makes coverage gaps computable.
-4. **Metering** of tokens, latency, conformance, and cost on every call.
+5. **Metering** of tokens, latency, conformance, and cost on every call.
 
 Runs against a local model through [Ollama](https://ollama.com) by default, or
 against the hosted Anthropic API using the same pipeline.
@@ -61,21 +72,53 @@ satisfying no requirement from 7 to 1.
 ## Architecture
 
 ```
-┌──────────────┐   HTTP/JSON   ┌───────────────┐   ┌─────────────────┐
+┌──────────────┐   HTTP/JSON   ┌────────────────┐   ┌─────────────────┐
 │  React (SPA) │ ────────────▶ │  FastAPI       │──▶│ Ollama (local)  │
-│  :5173       │ ◀──────────── │  :8000         │   └─────────────────┘
-└──────────────┘               │                │   ┌─────────────────┐
-                               │  llm.py routes │──▶│ Anthropic API   │
-                               │  by model id   │   └─────────────────┘
-                               └───────┬────────┘
+│  :5173       │ ◀──────────── │  :8000         │   │ generate+embed  │
+└──────────────┘               │                │   └─────────────────┘
+                               │  llm.py routes │   ┌─────────────────┐
+                               │  by model id   │──▶│ Anthropic API   │
+                               └───────┬────────┘   └─────────────────┘
                                        ▼
                                data/mappy.db
-                   (model elements, diagram, traces, activity + eval logs)
+     (model elements, diagram, traces, documents, rag_chunks, activity + eval logs)
 ```
 
-`llm.py` dispatches on the model id and both return the same result shape, so the rule
-engine, repair loop, and metrics are provider-agnostic. In this demo's case, 
-`claude-*` goes to the Anthropic SDK and anything else goes to Llama.
+`llm.py` dispatches on the model id and both providers return the same result
+shape, so the rule engine, repair loop, and metrics are provider-agnostic.
+`claude-*` goes to the Anthropic SDK; anything else goes to Ollama.
+
+### The retrieval loop
+
+```
+   system documents ──chunk──┐
+                             ├──▶ rag_chunks ──▶ retriever ──▶ chat / diagram
+   MBSE model ──────chunk────┘      (vectors)                        │
+        ▲                                                            │
+        └──────────── committed requirements and blocks ─────────────┘
+```
+
+Two knowledge sources feed one index. `rag.py` holds the chunking and scoring
+with no database dependency; `knowledge.py` wires it to storage and is the one
+place that decides when the index is rewritten.
+
+- **Chunking is heading-aware.** Engineering documents are sectioned because
+  each section is a separable concern, so a heading is a better boundary than
+  a word count. Every chunk carries its document title and its own heading —
+  without that, a chunk about a 20-minute holding time never says what is
+  being held up, and a search for "backup power" cannot find it.
+- **Model elements are chunked for how they get searched.** A requirement
+  carries its stereotype and verify method, because "which requirements are
+  verified by test" is a real query. A block carries the interfaces it sits
+  on, because a block name alone says almost nothing.
+- **Embeddings are local**: `nomic-embed-text` through Ollama, 768 dimensions,
+  cosine similarity, top 6, floor at 0.30. Below that floor a chunk is noise,
+  and padding a prompt with noise is how a grounded answer becomes a
+  confidently wrong one.
+- **Lexical scoring is the fallback**, not the design. If Ollama is
+  unreachable the index still answers by term overlap and the UI says which
+  method ran, so a missing embedding model degrades retrieval instead of
+  breaking the app.
 
 ---
 
@@ -84,9 +127,14 @@ engine, repair loop, and metrics are provider-agnostic. In this demo's case,
 Requires Python 3.12+, Node 18+, and [Ollama](https://ollama.com).
 
 ```bash
-ollama pull llama3.1:8b     # ~4.9 GB, one time
+ollama pull llama3.1:8b        # ~4.9 GB, one time — generation
+ollama pull nomic-embed-text   # ~274 MB, one time — embeddings for retrieval
 ./scripts/dev.sh
 ```
+
+Ollama is needed even when generating with a hosted Claude model, because
+embeddings always run locally. Without it, retrieval falls back to keyword
+matching and the Knowledge tab says so.
 
 The script creates the virtualenv and installs both dependency sets
 on first run, frees the ports if something is already on them, starts the API
@@ -200,7 +248,9 @@ backend/app/
   llm.py              provider router + shared result type
   ollama_client.py    local provider
   anthropic_client.py hosted provider
-  prompts.py          system instructions + repair prompts
+  rag.py              chunking, embedding, scoring -- no database dependency
+  knowledge.py        wires rag.py to storage; owns when the index is rebuilt
+  prompts.py          system instructions, retrieval guidance, repair prompts
   rules.py            INCOSE rule engine (8 checks + duplicate detection)
   diagram_rules.py    SysML structural/referential validation
   traceability.py     satisfy/refine/verify links + coverage analysis
@@ -208,11 +258,13 @@ backend/app/
   evaluation.py       metrics, cost model, aggregation
   eval_suite.py       golden prompt set
   storage.py          SQLite persistence
-  routes/             requirements, diagram, traces, evaluations, models,
-                      elements, log
+  seed_docs/          bundled reference corpus (fictional Meridian program)
+  routes/             chat, documents, requirements, diagram, traces,
+                      evaluations, models, elements, log
 frontend/src/
-  components/         GenerationForm, RequirementsList, BlockDiagram,
-                      EvaluationsPanel, ModelElementsPanel, ActivityLog
+  components/         ChatPanel, RequirementsWorkbench, KnowledgePanel,
+                      BlockDiagram, EvaluationsPanel, TraceabilityPanel,
+                      ModelElementsPanel, ActivityLog
   DiagramPage.jsx     standalone full-size diagram route
 scripts/
   dev.sh              setup + start both servers, wait until each answers
@@ -220,7 +272,7 @@ scripts/
 ```
 
 ```bash
-cd backend && pytest app/tests -q    # 23 tests: rules, traceability, judge
+cd backend && pytest app/tests -q    # 55 tests: rules, rag, traceability, judge
 cd frontend && npx oxlint src/ && npx vite build
 ```
 
@@ -247,7 +299,18 @@ Stated plainly, because they bound what this is useful for:
   more directly to the guidance. All the term lists are plain data at the top of
   `rules.py` so a systems engineer can tune them.
 - **No SysML interchange.** Output is application JSON, not XMI, so it does not
-  round-trip into Cameo or Rhapsody.
+  round-trip into Cameo or Rhapsody. The MBSE side of the retrieval index is
+  therefore the model *this tool* builds, not a parsed Cameo model. Blocks are
+  already chunked with their interfaces folded in, which is the shape a Cameo
+  parser would need to produce, but the parser itself is not written.
+- **Retrieval can be confidently irrelevant.** Similarity search returns the
+  nearest chunks, not the correct ones, and a question the corpus does not
+  answer still returns its six best guesses. The floor at 0.30 drops the worst
+  of it and the prompt tells the model to ignore passages that do not bear on
+  the question, but neither is a guarantee. Every answer names the passages it
+  used so the engineer can check rather than trust.
+- **Documents must be UTF-8 text.** `.txt` and `.md` are parsed; PDF and Word
+  are rejected with a message rather than indexed as mojibake.
 - **Duplicate detection is string similarity**, so it catches restatements, not
   two differently-worded requirements that mean the same thing.
 - **Local SQLite database** — single user, no auth. Everything goes through
