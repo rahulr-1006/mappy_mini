@@ -50,10 +50,10 @@ export const api = {
 
   getDiagram: () => request('/diagram'),
 
-  saveDiagram: (blocks, connectors) =>
+  saveDiagram: (blocks, connectors, prompt) =>
     request('/diagram', {
       method: 'POST',
-      body: JSON.stringify({ blocks, connectors }),
+      body: JSON.stringify({ blocks, connectors, prompt }),
     }),
 
   clearDiagram: () => request('/diagram', { method: 'DELETE' }),

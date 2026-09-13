@@ -144,7 +144,9 @@ async def save_diagram(payload: dict):
         for connector in connectors
     ]
 
-    diagram = storage.save_diagram(saved_blocks, saved_connectors)
+    diagram = storage.save_diagram(
+        saved_blocks, saved_connectors, payload.get("prompt")
+    )
     storage.log_event(f"Saved diagram with {len(saved_blocks)} block(s) to the model.")
     return diagram
 

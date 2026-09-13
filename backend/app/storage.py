@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS diagram_connectors (
     position INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
 CREATE TABLE IF NOT EXISTS traces (
     id             TEXT PRIMARY KEY,
     requirement_id TEXT NOT NULL,
@@ -255,7 +260,12 @@ def get_diagram() -> dict:
             connectors = conn.execute(
                 "SELECT * FROM diagram_connectors ORDER BY position"
             ).fetchall()
+            row = conn.execute(
+                "SELECT value FROM meta WHERE key = 'diagram_prompt'"
+            ).fetchone()
+            prompt = row["value"] if row else ""
     return {
+        "prompt": prompt,
         "blocks": [
             {"id": b["id"], "name": b["name"], "description": b["description"],
              "isRoot": bool(b["is_root"])}
@@ -269,9 +279,11 @@ def get_diagram() -> dict:
     }
 
 
-def save_diagram(blocks: List[dict], connectors: List[dict]) -> dict:
+def save_diagram(blocks: List[dict], connectors: List[dict],
+                 prompt: str | None = None) -> dict:
     """A saved diagram replaces the previous one, so this is a swap rather
-    than an append."""
+    than an append. The prompt is kept so the diagram can be regenerated
+    against a changed set of requirements without retyping it."""
     with _lock:
         _ensure_db()
         with _connect() as conn:
@@ -296,6 +308,11 @@ def save_diagram(blocks: List[dict], connectors: List[dict]) -> dict:
                 "DELETE FROM traces WHERE block_id NOT IN "
                 "(SELECT id FROM diagram_blocks)"
             )
+            if prompt is not None:
+                conn.execute(
+                    "INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)",
+                    ("diagram_prompt", prompt),
+                )
     return get_diagram()
 
 
@@ -306,6 +323,7 @@ def clear_diagram() -> dict:
             conn.execute("DELETE FROM diagram_blocks")
             conn.execute("DELETE FROM diagram_connectors")
             conn.execute("DELETE FROM traces")
+            conn.execute("DELETE FROM meta WHERE key = 'diagram_prompt'")
     return get_diagram()
 
 

@@ -26,6 +26,7 @@ function App() {
   const [draftDiagram, setDraftDiagram] = useState({ blocks: [], connectors: [] })
   const [diagramLog, setDiagramLog] = useState([])
   const [savedDiagram, setSavedDiagram] = useState({ blocks: [], connectors: [] })
+  const [diagramPrompt, setDiagramPrompt] = useState('')
   const [generatingDiagram, setGeneratingDiagram] = useState(false)
   const [savingDiagram, setSavingDiagram] = useState(false)
 
@@ -144,6 +145,7 @@ function App() {
     try {
       const res = await api.generateDiagram(payload)
       setDraftDiagram({ blocks: res.blocks, connectors: res.connectors })
+      setDiagramPrompt(payload.prompt)
       setDiagramLog(res.log)
       await Promise.all([refreshLog(), refreshEvaluations()])
     } catch (err) {
@@ -157,7 +159,7 @@ function App() {
     setSavingDiagram(true)
     setError(null)
     try {
-      await api.saveDiagram(draftDiagram.blocks, draftDiagram.connectors)
+      await api.saveDiagram(draftDiagram.blocks, draftDiagram.connectors, diagramPrompt)
       await Promise.all([refreshDiagram(), refreshLog(), refreshTraces()])
     } catch (err) {
       setError(err.message)
@@ -258,6 +260,15 @@ function App() {
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  async function handleRegenerateDiagram() {
+    const prompt = savedDiagram.prompt || diagramPrompt
+    if (!prompt) return
+    await handleGenerateDiagram({
+      prompt,
+      model: defaultModel || models[0],
+    })
   }
 
   function openFullDiagramView() {
@@ -415,11 +426,30 @@ function App() {
                 </div>
                 <BlockDiagram blocks={savedDiagram.blocks} connectors={savedDiagram.connectors} />
                 {savedDiagram.blocks.length > 0 && (
-                  <div className="diagram-actions">
-                    <button type="button" className="secondary" onClick={handleClearDiagram}>
-                      Clear saved diagram
-                    </button>
-                  </div>
+                  <>
+                    {savedDiagram.prompt && (
+                      <p className="empty-state">
+                        Change which requirements you have kept, then regenerate
+                        to redesign against the new set.
+                      </p>
+                    )}
+                    <div className="diagram-actions">
+                      {savedDiagram.prompt && (
+                        <button
+                          type="button"
+                          onClick={handleRegenerateDiagram}
+                          disabled={generatingDiagram}
+                        >
+                          {generatingDiagram
+                            ? 'Regenerating…'
+                            : `Regenerate from ${modelElements.length} requirement(s)`}
+                        </button>
+                      )}
+                      <button type="button" className="secondary" onClick={handleClearDiagram}>
+                        Clear saved diagram
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             </>

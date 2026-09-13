@@ -93,3 +93,25 @@ def test_missing_provider_reads_back_as_local(store):
                            "timestamp": "2026-01-01T00:00:00Z"})
 
     assert store.get_eval_log()[0]["provider"] == "ollama"
+
+
+def test_saved_diagram_remembers_its_prompt(store):
+    store.save_diagram([{"id": "b1", "name": "B", "isRoot": True}], [], "a ground station")
+
+    assert store.get_diagram()["prompt"] == "a ground station"
+
+
+def test_saving_without_a_prompt_keeps_the_previous_one(store):
+    """Re-saving an edited diagram should not wipe the prompt that can
+    regenerate it."""
+    store.save_diagram([{"id": "b1", "name": "B", "isRoot": True}], [], "a ground station")
+    store.save_diagram([{"id": "b2", "name": "C", "isRoot": True}], [])
+
+    assert store.get_diagram()["prompt"] == "a ground station"
+
+
+def test_clearing_the_diagram_drops_the_prompt(store):
+    store.save_diagram([{"id": "b1", "name": "B", "isRoot": True}], [], "a ground station")
+    store.clear_diagram()
+
+    assert store.get_diagram()["prompt"] == ""
