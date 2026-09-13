@@ -120,6 +120,26 @@ exists to make that race impossible.
 
 ---
 
+## Traceability
+
+Requirements and design elements are only useful together. The app links them
+with SysML relationships — `satisfy`, `refine`, `verify` — and computes the
+two findings that matter in a design review:
+
+- **Uncovered requirements** — agreed, written down, and allocated to nothing
+  that builds them. Only `satisfy` counts here; refining or verifying a
+  requirement does not mean anything fulfils it.
+- **Orphan blocks** — design elements that satisfy no stated requirement.
+  Either a requirement is missing, or the element is unjustified scope.
+
+The model proposes the matrix and a human confirms it. Suggestions are
+validated against the real id sets before they are shown, so a hallucinated
+link is dropped rather than surfaced, and nothing is written to the model until
+the engineer accepts it. Asked to link requirements about a launch vehicle to a
+diagram of an unrelated system, it correctly proposed nothing.
+
+---
+
 ## Evaluation
 
 Every generation records tokens in/out, LLM call count (including each repair
@@ -152,6 +172,35 @@ The local model is slower and less thorough, but self-correction closes most of
 the conformance gap. For controlled documents the deciding factor is usually
 data residency rather than the sub-cent cost difference.
 
+### Semantic review: what the rule engine cannot see
+
+The rule engine is lexical. It verifies a requirement is *written* well; it
+cannot tell you whether the requirement bundles three needs into one sentence,
+or states something no test could falsify. A second model scores the same
+requirements on criteria a regex cannot reach — singular, verifiable,
+implementation-free, unambiguous, necessary — and the two signals are
+cross-tabulated.
+
+On the current model elements, **2 of 5 requirements passed every lexical rule
+but were flagged by semantic review**, both for bundling multiple needs into a
+single requirement. That number is the honest bound on what lexical validation
+buys you, and it is measured rather than asserted.
+
+### Prompt caching: measured, and it does not help here
+
+The system instructions are byte-identical on every call, so they are marked
+cacheable. Measured on 2026-09-13, **this currently no-ops**: a prefix shorter
+than the model's minimum cacheable length is silently not cached, and these
+instructions are ~700-930 tokens. Probing with a padded prompt confirmed the
+implementation is correct — Sonnet 5 at ~4.5k tokens wrote the cache on the
+first call and read it back on the second, dropping billed input from 932 to 14
+tokens. Haiku 4.5 did not cache even at ~2.5k, so its minimum is higher.
+
+Padding the prompt to cross that threshold would be a net loss: you would pay
+for thousands of filler input tokens to earn a discount on those same tokens.
+The plumbing stays because it starts paying the moment the instructions
+genuinely grow — few-shot examples, or the INCOSE rule text inline.
+
 ### What the evals caught
 
 Their first run exposed a silent failure that manual testing had missed: the
@@ -172,10 +221,13 @@ backend/app/
   prompts.py          system instructions + repair prompts
   rules.py            INCOSE rule engine (8 checks + duplicate detection)
   diagram_rules.py    SysML structural/referential validation
+  traceability.py     satisfy/refine/verify links + coverage analysis
+  judge.py            semantic review scoring, cross-tabbed with the rules
   evaluation.py       metrics, cost model, aggregation
   eval_suite.py       golden prompt set
   storage.py          JSON persistence behind a lock
-  routes/             requirements, diagram, evaluations, models, elements, log
+  routes/             requirements, diagram, traces, evaluations, models,
+                      elements, log
 frontend/src/
   components/         GenerationForm, RequirementsList, BlockDiagram,
                       EvaluationsPanel, ModelElementsPanel, ActivityLog
@@ -186,7 +238,7 @@ scripts/
 ```
 
 ```bash
-cd backend && pytest app/tests -q    # 12 tests over the rule engine
+cd backend && pytest app/tests -q    # 23 tests: rules, traceability, judge
 cd frontend && npx oxlint src/ && npx vite build
 ```
 
@@ -204,8 +256,6 @@ Stated plainly, because they bound what this is useful for:
   for completeness. The vague-terms, absolutes, and escape-clause checks map far
   more directly to the guidance. All the term lists are plain data at the top of
   `rules.py` so a systems engineer can tune them.
-- **No traceability model.** Requirements and diagram blocks are separate
-  collections with no `satisfy` / `derive` links between them.
 - **No SysML interchange.** Output is application JSON, not XMI, so it does not
   round-trip into Cameo or Rhapsody.
 - **Duplicate detection is string similarity**, so it catches restatements, not
