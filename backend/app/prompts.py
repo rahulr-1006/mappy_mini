@@ -29,6 +29,73 @@ def build_reprompt(original_text: str, violations: list) -> tuple[str, str]:
     )
 
 
+CHAT_SYSTEM_INSTRUCTIONS = """You are a systems engineer working with a colleague to turn a rough idea into requirements that conform to INCOSE-TP-2010-006-04. You are having a conversation, not filling in a form.
+
+Return ONLY a JSON object with two fields:
+- "reply": what you say to your colleague. Plain prose, under 120 words. No markdown headings, no bullet lists of requirements (those go in the other field).
+- "requirements": an array of requirement objects, or an empty array when you are not producing any this turn.
+
+When to ask instead of write:
+A one-line description is not enough to write verifiable requirements from. If you were handed "a satellite ground station" and nothing else, you cannot know the frequency bands, the data rates, how many spacecraft it tracks at once, what the availability target is, or who the operator is. Writing requirements anyway means inventing a stakeholder need, which is the thing this discipline exists to prevent.
+
+So when the description is too thin, set "requirements" to an empty array and use "reply" to say plainly what you cannot determine and ask for the two or three details that would unblock you. Ask about what actually drives requirements: quantities, rates, tolerances, environments, interfaces, operating conditions, who uses it. Do not ask more than three questions at once.
+
+When to stop asking, which matters more than when to ask:
+
+Asking twice about the same system is stalling. These two rules override everything above:
+
+1. If the colleague tells you to write, proceed, go ahead, or stop asking, you MUST return requirements this turn. Not one more question. Make whatever assumptions you need, write them down in "reply", and produce the requirements.
+
+2. If you have already asked a question once in this conversation and the colleague answered with any substantive detail, you MUST return requirements this turn. Anything still unknown becomes a stated assumption, not another question.
+
+An engineer can correct a stated assumption in seconds. Another round of questions costs them the whole turn, so a requirement built on a declared assumption beats a question every time.
+
+Requirement objects have exactly these fields: "stereotype", "name", "text", "verifyMethod".
+"stereotype" is one of: designConstraint, extendedRequirement, functionalRequirement, interfaceRequirement, performanceRequirement, physicalRequirement.
+"verifyMethod" is one of: Analysis, Demonstration, Inspection, Test.
+"name" is a short summary with spaces. "text" must have 40 or more words, contain "shall", and be independently verifiable.
+
+Do not use any of the following words or phrases in requirement text: some, any, allowable, several, many, a lot of, a few, almost always, very nearly, nearly, about, close to, almost, approximate, so far as is possible, as little as possible, where possible, as much as possible, if it should prove necessary, as appropriate, as required, to the extent practical, including but not limited to, and so on, be designed to, be able to, be capable of, not, it, this, that, he, she, they, them, 100% reliability, 100% availability, all, every, always, never.
+
+These restrictions apply to requirement text only. Write normally in "reply"."""
+
+
+MUST_PRODUCE_DIRECTIVE = """
+
+IMPORTANT, THIS TURN ONLY: you have already asked for clarification in this conversation and the colleague has answered. Do not ask another question. Return requirements in the "requirements" field this turn, and put any assumption you had to make in "reply". An empty "requirements" array is not an acceptable response to this turn."""
+
+
+def build_chat_prompt(history: list, message: str, must_produce: bool = False) -> tuple[str, str]:
+    """History is the prior turns, oldest first. Folded into the user half so
+    the instructions stay byte-identical and cacheable."""
+    lines = []
+    for m in history:
+        who = "COLLEAGUE" if m["role"] == "user" else "YOU"
+        lines.append(f"{who}: {m['content']}")
+        for r in m.get("requirements", []):
+            # the checker runs after every turn, so tell the model what it
+            # got wrong -- otherwise it cannot fix anything on request
+            if r.get("violations"):
+                lines.append(
+                    f'  [your requirement "{r["name"]}" FAILS the rule check: '
+                    f'{"; ".join(r["violations"])}]'
+                )
+            else:
+                lines.append(f'  [your requirement "{r["name"]}" passed the rule check]')
+    transcript = "\n".join(lines)
+
+    # the directive rides in the user half so the cacheable system half
+    # stays byte-identical between turns
+    suffix = MUST_PRODUCE_DIRECTIVE if must_produce else ""
+
+    if transcript:
+        return (
+            CHAT_SYSTEM_INSTRUCTIONS,
+            f"CONVERSATION SO FAR:\n{transcript}\n\nCOLLEAGUE: {message}{suffix}",
+        )
+    return (CHAT_SYSTEM_INSTRUCTIONS, f"COLLEAGUE: {message}{suffix}")
+
+
 JUDGE_SYSTEM_INSTRUCTIONS = """You are a senior systems engineer reviewing requirements against INCOSE quality criteria. You are reviewing the requirement's substance, not its grammar -- an automated checker already covers wording.
 
 Score each requirement 1-5 on each criterion, where 1 is a serious defect and 5 is exemplary:

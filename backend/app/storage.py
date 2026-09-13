@@ -46,6 +46,14 @@ CREATE TABLE IF NOT EXISTS diagram_connectors (
     position INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    role         TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    requirements TEXT,
+    created_at   TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -385,6 +393,53 @@ def log_event(message: str, verbose: bool = False) -> dict:
                 (datetime.now(timezone.utc).isoformat(), message, 1 if verbose else 0),
             )
     return {"message": message}
+
+
+def get_chat_messages() -> List[dict]:
+    with _lock:
+        _ensure_db()
+        with _connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM chat_messages ORDER BY id"
+            ).fetchall()
+    return [
+        {
+            "id": r["id"],
+            "role": r["role"],
+            "content": r["content"],
+            "requirements": json.loads(r["requirements"] or "[]"),
+            "timestamp": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
+def add_chat_message(role: str, content: str, requirements: List[dict] | None = None) -> dict:
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        _ensure_db()
+        with _connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO chat_messages (role, content, requirements, created_at) "
+                "VALUES (?,?,?,?)",
+                (role, content, json.dumps(requirements or []), now),
+            )
+            new_id = cur.lastrowid
+    return {
+        "id": new_id,
+        "role": role,
+        "content": content,
+        "requirements": requirements or [],
+        "timestamp": now,
+    }
+
+
+def clear_chat() -> List[dict]:
+    with _lock:
+        _ensure_db()
+        with _connect() as conn:
+            conn.execute("DELETE FROM chat_messages")
+    return []
 
 
 def get_eval_log() -> List[dict]:

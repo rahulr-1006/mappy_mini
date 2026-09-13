@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 import { ActivityLog } from './components/ActivityLog'
 import { BlockDiagram } from './components/BlockDiagram'
+import { ChatPanel } from './components/ChatPanel'
 import { EvaluationsPanel } from './components/EvaluationsPanel'
 import { GenerationForm } from './components/GenerationForm'
 import { ModelElementsPanel } from './components/ModelElementsPanel'
@@ -35,6 +36,10 @@ function App() {
   const [judgeResult, setJudgeResult] = useState(null)
   const [judging, setJudging] = useState(false)
 
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatBusy, setChatBusy] = useState(false)
+  const [chatKeepingKey, setChatKeepingKey] = useState(null)
+
   const [coverage, setCoverage] = useState(null)
   const [traces, setTraces] = useState([])
   const [suggestions, setSuggestions] = useState([])
@@ -59,6 +64,10 @@ function App() {
     setEvaluations(await api.getEvaluations())
   }, [])
 
+  const refreshChat = useCallback(async () => {
+    setChatMessages(await api.getChat())
+  }, [])
+
   const refreshTraces = useCallback(async () => {
     const [cov, links] = await Promise.all([api.getCoverage(), api.getTraces()])
     setCoverage(cov)
@@ -75,6 +84,7 @@ function App() {
           refreshDiagram(),
           refreshEvaluations(),
           refreshTraces(),
+          refreshChat(),
         ])
         setModels(modelsRes.models)
         setDefaultModel(modelsRes.default)
@@ -83,7 +93,7 @@ function App() {
       }
     }
     loadInitial()
-  }, [refreshElements, refreshLog, refreshDiagram, refreshEvaluations, refreshTraces])
+  }, [refreshElements, refreshLog, refreshDiagram, refreshEvaluations, refreshTraces, refreshChat])
 
   async function handleGenerate(payload) {
     setGenerating(true)
@@ -191,6 +201,50 @@ function App() {
       setError(err.message)
     } finally {
       setJudging(false)
+    }
+  }
+
+  async function handleSendChat(message) {
+    setChatBusy(true)
+    setError(null)
+    try {
+      const res = await api.sendChat(message, defaultModel || models[0])
+      setChatMessages(res.messages)
+      await Promise.all([refreshLog(), refreshEvaluations()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setChatBusy(false)
+    }
+  }
+
+  async function handleKeepFromChat(requirement, key) {
+    setChatKeepingKey(key)
+    setError(null)
+    try {
+      await api.createModelElements([
+        {
+          stereotype: requirement.stereotype,
+          name: requirement.name,
+          text: requirement.text,
+          verifyMethod: requirement.verifyMethod,
+        },
+      ])
+      await Promise.all([refreshElements(), refreshLog(), refreshTraces()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setChatKeepingKey(null)
+    }
+  }
+
+  async function handleClearChat() {
+    setError(null)
+    try {
+      await api.clearChat()
+      await Promise.all([refreshChat(), refreshLog()])
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -313,6 +367,13 @@ function App() {
             </button>
             <button
               type="button"
+              className={tab === 'chat' ? 'active' : ''}
+              onClick={() => setTab('chat')}
+            >
+              Chat
+            </button>
+            <button
+              type="button"
               className={tab === 'diagram' ? 'active' : ''}
               onClick={() => setTab('diagram')}
             >
@@ -354,6 +415,17 @@ function App() {
                 onDiscard={handleDiscard}
               />
             </>
+          )}
+
+          {tab === 'chat' && (
+            <ChatPanel
+              messages={chatMessages}
+              busy={chatBusy}
+              keepingKey={chatKeepingKey}
+              onSend={handleSendChat}
+              onKeep={handleKeepFromChat}
+              onClear={handleClearChat}
+            />
           )}
 
           {tab === 'traceability' && (

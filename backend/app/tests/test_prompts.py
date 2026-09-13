@@ -1,4 +1,4 @@
-from app.prompts import build_diagram_prompt
+from app.prompts import build_chat_prompt, build_diagram_prompt
 
 REQS = [
     {"name": "Pass scheduling", "text": "The station shall compute pass windows."},
@@ -38,3 +38,51 @@ def test_breadth_floor_only_applies_without_requirements():
     assert "6-9 subsystem blocks" in bare
     assert "6-9 subsystem blocks" not in scoped
     assert "unjustified scope" in scoped
+
+
+def test_chat_prompt_carries_the_transcript():
+    history = [
+        {"role": "user", "content": "A ground station.", "requirements": []},
+        {"role": "assistant", "content": "Which band?", "requirements": []},
+    ]
+    _, user = build_chat_prompt(history, "S-band.")
+
+    assert "COLLEAGUE: A ground station." in user
+    assert "YOU: Which band?" in user
+    assert user.rstrip().endswith("COLLEAGUE: S-band.")
+
+
+def test_chat_prompt_reports_failed_rule_checks_back_to_the_model():
+    """Without this the model cannot fix anything when asked, because it
+    never learns the checker rejected its last answer."""
+    history = [
+        {
+            "role": "assistant",
+            "content": "Here you go.",
+            "requirements": [
+                {"name": "Pointing", "violations": ["word_count: only 20 words, needs >= 40"]},
+                {"name": "Downlink", "violations": []},
+            ],
+        }
+    ]
+    _, user = build_chat_prompt(history, "fix them")
+
+    assert 'FAILS the rule check: word_count' in user
+    assert '"Downlink" passed the rule check' in user
+
+
+def test_must_produce_directive_is_opt_in():
+    history = [{"role": "assistant", "content": "Which band?", "requirements": []}]
+
+    _, without = build_chat_prompt(history, "S-band.")
+    _, with_it = build_chat_prompt(history, "S-band.", must_produce=True)
+
+    assert "not an acceptable response" not in without
+    assert "not an acceptable response" in with_it
+
+
+def test_the_directive_does_not_disturb_the_cacheable_half():
+    system_a, _ = build_chat_prompt([], "x")
+    system_b, _ = build_chat_prompt([], "x", must_produce=True)
+
+    assert system_a == system_b

@@ -58,6 +58,16 @@ export const api = {
 
   clearDiagram: () => request('/diagram', { method: 'DELETE' }),
 
+  getChat: () => request('/chat'),
+
+  sendChat: (message, model) =>
+    request('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, model }),
+    }),
+
+  clearChat: () => request('/chat', { method: 'DELETE' }),
+
   getTraces: () => request('/traces'),
 
   getCoverage: () => request('/traces/coverage'),

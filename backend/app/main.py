@@ -5,6 +5,7 @@ from . import config
 from .llm import generate_json
 from .routes import (
     activity_log,
+    chat,
     diagram,
     evaluations,
     model_elements,
@@ -29,6 +30,7 @@ app.include_router(activity_log.router)
 app.include_router(diagram.router)
 app.include_router(evaluations.router)
 app.include_router(traces.router)
+app.include_router(chat.router)
 
 
 @app.get("/health")
