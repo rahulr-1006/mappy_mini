@@ -28,5 +28,10 @@ ALLOWED_VERIFY_METHODS = ["Analysis", "Demonstration", "Inspection", "Test"]
 
 MAX_REPROMPTS = 3
 
+# Chat repairs on the same budget as the Requirements tab. Measured on
+# llama3.1:8b a chat repair is ~9s, so the worst case stays inside a turn
+# a person will sit through, and one budget means one story to tell.
+CHAT_MAX_REPROMPTS = MAX_REPROMPTS
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 STATE_FILE = os.environ.get("STATE_FILE", os.path.join(DATA_DIR, "state.json"))

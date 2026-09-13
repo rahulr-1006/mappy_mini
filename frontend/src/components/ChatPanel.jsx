@@ -49,8 +49,17 @@ export function ChatPanel({ messages, busy, keepingKey, onSend, onKeep, onClear 
                       <div className="requirement-header">
                         <span className="badge badge-accent">{r.stereotype}</span>
                         <span className="badge">{r.verifyMethod}</span>
+                        {r.reprompts > 0 && r.violations?.length === 0 && (
+                          <span className="badge badge-warn">
+                            repaired ×{r.reprompts}
+                          </span>
+                        )}
                         {r.violations?.length > 0 && (
-                          <span className="badge badge-fail">fails rule check</span>
+                          <span className="badge badge-fail">
+                            {r.reprompts > 0
+                              ? `still failing after ${r.reprompts} attempt(s)`
+                              : 'fails rule check'}
+                          </span>
                         )}
                       </div>
                       <p className="requirement-name">{r.name}</p>

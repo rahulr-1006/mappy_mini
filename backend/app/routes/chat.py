@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from .. import config, rules, storage
 from ..evaluation import MetricsAccumulator
 from ..llm import LLMError, generate_json
-from ..prompts import build_chat_prompt
+from ..prompts import build_chat_prompt, build_reprompt
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -39,6 +39,41 @@ def _violations(item: dict) -> List[str]:
     for v in rules.validate_requirement_text(item["text"]):
         out.append(f"{v.rule}: {v.detail}")
     return out
+
+
+async def _repair(
+    item: dict, violations: List[str], model: str, acc: MetricsAccumulator
+) -> tuple[dict, List[str], int]:
+    """Send a failing draft back with the rules it broke, on a tighter budget
+    than the Requirements tab. Returns the best version reached, its remaining
+    violations, and how many repair attempts it cost."""
+    reprompts = 0
+    current = item
+
+    while violations and reprompts < config.CHAT_MAX_REPROMPTS:
+        storage.log_event(
+            f"Chat requirement {current['name']!r} failed rules: "
+            f"{', '.join(violations)}. Re-prompting (attempt {reprompts + 1})."
+        )
+        fix_system, fix_prompt = build_reprompt(current["text"], violations)
+        try:
+            fix_result = await generate_json(fix_prompt, model, fix_system)
+            acc.add(fix_result)
+            current = {**current, **_normalize(json.loads(fix_result.text))}
+        except (LLMError, json.JSONDecodeError, ValueError) as exc:
+            storage.log_event(f"Chat repair failed for {current['name']!r}: {exc}")
+            break
+        reprompts += 1
+        violations = _violations(current)
+
+    if violations:
+        storage.log_event(
+            f"Chat requirement {current['name']!r} still breaks "
+            f"{len(violations)} rule(s) after {reprompts} repair attempt(s): "
+            f"{', '.join(violations)}."
+        )
+
+    return current, violations, reprompts
 
 
 @router.get("")
@@ -91,11 +126,20 @@ async def send_message(payload: ChatRequest):
         reply, raw = result.text.strip()[:1500], []
 
     requirements = []
+    first_pass_count = 0
     for item in raw:
         norm = _normalize(item)
         if not norm["text"]:
             continue
-        norm["violations"] = _violations(norm)
+        violations = _violations(norm)
+        if not violations:
+            first_pass_count += 1
+        # chat drafts are held to the same rulebook as the Requirements tab,
+        # so a failing draft goes back to the model with the rule it broke
+        # rather than landing in the thread as a red card nothing repairs
+        norm, violations, reprompts = await _repair(norm, violations, payload.model, acc)
+        norm["violations"] = violations
+        norm["reprompts"] = reprompts
         requirements.append(norm)
 
     if not reply:
@@ -108,10 +152,12 @@ async def send_message(payload: ChatRequest):
     msg = storage.add_chat_message("assistant", reply, requirements)
 
     clean = sum(1 for r in requirements if not r["violations"])
+    repaired = sum(1 for r in requirements if r["reprompts"] and not r["violations"])
     storage.log_event(
         f"Chat turn with model={payload.model}: "
         + (
-            f"{len(requirements)} requirement(s) drafted, {clean} clean."
+            f"{len(requirements)} requirement(s) drafted, {clean} clean "
+            f"({first_pass_count} first pass, {repaired} after repair)."
             if requirements
             else "asked for more detail."
         )
@@ -119,7 +165,7 @@ async def send_message(payload: ChatRequest):
 
     metrics = acc.finalize(
         items=len(requirements),
-        first_pass_rate=(clean / len(requirements)) if requirements else 0.0,
+        first_pass_rate=(first_pass_count / len(requirements)) if requirements else 0.0,
         success_rate=(clean / len(requirements)) if requirements else 0.0,
     )
     storage.add_eval_record(metrics.to_record())
