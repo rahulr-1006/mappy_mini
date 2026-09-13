@@ -1,50 +1,55 @@
 # Mini-MAPPy
 
-AI-assisted MBSE tooling. Give it a plain-English system description; it drafts
+AI-assisted MBSE tooling based on MAPPy by Booz Allen Hamilton. Given a plain-text English prompt, it drafts
 requirements that conform to the INCOSE writing rules and a SysML block
 definition diagram, traces one to the other, and meters what the generation
-cost in tokens, seconds, and dollars.
+cost in tokens, seconds, and dollars. This transforms previously manual systems engineering processes into efficient and engineered models.
+Hope you enjoy the read and get a chance to test it out on your local machine!
 
 Four things happen to every generated artifact:
 
 1. **Lexical validation** against the INCOSE writing rules, with failures
    driving a targeted rewrite rather than a rejection.
-2. **Semantic review** by a second model, scoring what a regex cannot see —
+2. **Semantic review** by a second model, scoring what a regex cannot see, such as
    whether a requirement is singular, verifiable, and implementation-free.
-3. **Traceability** linking requirements to the design elements that satisfy
+4. **Traceability** linking requirements to the design elements that satisfy
    them, which makes coverage gaps computable.
-4. **Metering** of tokens, latency, conformance, and cost on every call.
+5. **Metering** of tokens, latency, conformance, and cost on every call.
 
 Runs against a local model through [Ollama](https://ollama.com) by default, or
-against the hosted Anthropic API — the same pipeline, so the tradeoff between
-them is measured rather than assumed.
+against the hosted Anthropic API using the same pipeline.
 
 ---
 
-## The part that isn't just an LLM call
+## Going Beyond a Simple LLM Call
 
 An LLM asked for INCOSE-conformant requirements will produce plausible prose
 that quietly breaks the rules. This project treats that as the engineering
 problem rather than the finished product:
 
-1. **The rulebook is executable.** `rules.py` implements eight checks — minimum
-   length, presence of "shall", vague terms, unachievable absolutes, bare
-   pronouns, escape clauses, open-ended clauses, superfluous phrases — plus a
-   batch-level near-duplicate detector that no per-requirement check could catch.
+1. **The rulebook is executable.** `rules.py` implements a series of checks:
+- Minimum length check
+- Presence of the word "shall"
+- Vague terms check
+- Unachievable absolutes check
+- Bare pronouns check
+- Escape clauses check
+- Open-ended clauses check
+- Superfluous phrases check
+- Batch-level near-duplicate detector
 
 2. **Violations drive a targeted retry.** A failing requirement is re-prompted
    with *the specific rules it broke*, not a generic "try again", bounded at
-   three attempts so worst-case cost stays bounded.
+   three attempts so worst-case cost stays bounded. This ensures that key issues
+   are addressed step by step without any hallucinations.
 
-3. **The loop's value is measured, not asserted.** On the benchmark suite,
+4. **The loop's value is measured, not asserted.** On the benchmark suite,
    locally generated requirements pass all rules first try **50%** of the time
    and are valid after self-correction **93%** of the time. That 43-point lift
    is what the validation layer buys.
 
 Diagrams get the same treatment with different rules: validation there is
-referential integrity (every connector resolves to a real block, exactly one
-root, no self-loops, kinds from the allowed set), and repair re-prompts the
-whole graph rather than one node.
+referential integrity and repair re-prompts the whole graph rather than one node.
 
 ---
 
@@ -63,9 +68,9 @@ whole graph rather than one node.
                    (model elements, diagram, activity + eval logs)
 ```
 
-`llm.py` dispatches on the model id — `claude-*` goes to the Anthropic SDK,
-anything else to Ollama — and both return the same result shape, so the rule
-engine, repair loop, and metrics are provider-agnostic.
+`llm.py` dispatches on the model id and both return the same result shape, so the rule
+engine, repair loop, and metrics are provider-agnostic. In this demo's case, 
+`claude-*` goes to the Anthropic SDK and anything else goes to Llama.
 
 ---
 
@@ -78,7 +83,7 @@ ollama pull llama3.1:8b     # ~4.9 GB, one time
 ./scripts/dev.sh
 ```
 
-That's it. The script creates the virtualenv and installs both dependency sets
+The script creates the virtualenv and installs both dependency sets
 on first run, frees the ports if something is already on them, starts the API
 and the dev server, **waits until each actually answers**, and opens the app.
 
@@ -87,14 +92,10 @@ and the dev server, **waits until each actually answers**, and opens the app.
 - API docs — <http://localhost:8000/docs>
 
 ```bash
-./scripts/dev.sh --no-open   # same, without launching a browser
-./scripts/stop.sh            # stop both servers
+./scripts/dev.sh --no-open  
+./scripts/stop.sh          
 tail -f /tmp/mappy-backend.log
 ```
-
-**Optional — hosted models.** Copy `backend/.env.example` to `backend/.env` and
-add an Anthropic API key. Claude models then appear in the model picker
-alongside the local ones. Without a key the app runs fully local and offline.
 
 <details>
 <summary>Running the servers by hand</summary>
@@ -112,28 +113,14 @@ npm install
 npm run dev
 ```
 
-The ordering matters. The frontend fetches its data once when the page mounts,
-so if the API isn't answering yet you get a "Load failed" banner that does not
-retry on its own — reload the page once the backend is up. `scripts/dev.sh`
-exists to make that race impossible.
-
 </details>
-
-### Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `ERROR: [Errno 48] Address already in use` | A server from a previous session is still running (`nohup`/`&` survives closing the terminal) | `./scripts/stop.sh`, or just re-run `./scripts/dev.sh` — it clears the ports itself |
-| "Load failed" banner, "No models available" | Page mounted before the API was answering | Reload the page. Use `./scripts/dev.sh` to avoid it |
-| Generation fails against a local model | Ollama not running, or the model was never pulled | `ollama serve` and `ollama pull llama3.1:8b` |
-| Claude models missing from the picker | No API key | Add `ANTHROPIC_API_KEY` to `backend/.env` and restart |
 
 ---
 
 ## Traceability
 
 Requirements and design elements are only useful together. The app links them
-with SysML relationships — `satisfy`, `refine`, `verify` — and computes the
+with SysML relationships such as `satisfy`, `refine`, `verify`. It then computes the
 two findings that matter in a design review:
 
 - **Uncovered requirements** — agreed, written down, and allocated to nothing
@@ -158,8 +145,8 @@ conformance. Cost is derived at read time from stored token counts, so
 correcting a published rate reprices history rather than leaving stale figures
 baked into old records.
 
-A fixed golden set of six prompts re-runs on demand, so a prompt or model change
-is compared on identical inputs:
+A fixed golden set of six self-created prompts re-runs on demand, so a prompt or model change
+is compared on identical inputs. We can change these as needed to ensure proper tailoring:
 
 ```bash
 curl -X POST localhost:8000/evaluations/run-suite \
@@ -180,36 +167,16 @@ Same six prompts, both providers:
 
 The local model is slower and less thorough, but self-correction closes most of
 the conformance gap. For controlled documents the deciding factor is usually
-data residency rather than the sub-cent cost difference.
+data residency rather than the sub-cent cost difference. The local model is also 
+what my machine could computationally do in the scope of the weekend.
 
 ### Semantic review: what the rule engine cannot see
 
 The rule engine is lexical. It verifies a requirement is *written* well; it
 cannot tell you whether the requirement bundles three needs into one sentence,
 or states something no test could falsify. A second model scores the same
-requirements on criteria a regex cannot reach — singular, verifiable,
-implementation-free, unambiguous, necessary — and the two signals are
+requirements on criteria a regex cannot reach and the two signals are
 cross-tabulated.
-
-On the current model elements, **2 of 5 requirements passed every lexical rule
-but were flagged by semantic review**, both for bundling multiple needs into a
-single requirement. That number is the honest bound on what lexical validation
-buys you, and it is measured rather than asserted.
-
-### Prompt caching: measured, and it does not help here
-
-The system instructions are byte-identical on every call, so they are marked
-cacheable. Measured on 2026-09-13, **this currently no-ops**: a prefix shorter
-than the model's minimum cacheable length is silently not cached, and these
-instructions are ~700-930 tokens. Probing with a padded prompt confirmed the
-implementation is correct — Sonnet 5 at ~4.5k tokens wrote the cache on the
-first call and read it back on the second, dropping billed input from 932 to 14
-tokens. Haiku 4.5 did not cache even at ~2.5k, so its minimum is higher.
-
-Padding the prompt to cross that threshold would be a net loss: you would pay
-for thousands of filler input tokens to earn a discount on those same tokens.
-The plumbing stays because it starts paying the moment the instructions
-genuinely grow — few-shot examples, or the INCOSE rule text inline.
 
 ### What the evals caught
 
