@@ -106,11 +106,33 @@ Each connector is an object with fields: "id" (a short lowercase slug), "source"
 Every block except the root must be reachable from the root, directly or transitively, through at least one connector. Do not invent block ids in a connector that don't appear in "blocks"."""
 
 
-def build_diagram_prompt(desired_system: str) -> tuple[str, str]:
+REQUIREMENTS_DRIVEN_CLAUSE = """
+
+You will also be given the requirements this system has to meet. The design must follow from them: every requirement should have at least one block that plausibly fulfils it, and a reader should be able to point at a block and say which requirement it exists to satisfy.
+
+Cover the requirements first, then add whatever further subsystems the system would obviously need but no requirement happens to mention. Do not invent a block purely to look thorough, and do not drop a subsystem just because no requirement names it."""
+
+
+def build_diagram_prompt(desired_system: str, requirements: list | None = None) -> tuple[str, str]:
+    """Design should follow from the requirements rather than be drafted
+    beside them, so the kept requirements go into the prompt when there are
+    any. Without them this falls back to generating from the description
+    alone."""
+    if not requirements:
+        return (
+            DIAGRAM_SYSTEM_INSTRUCTIONS,
+            "Generate a block definition diagram for the following desired system:\n"
+            f"{desired_system}",
+        )
+
+    req_lines = "\n".join(
+        f'- {r.get("name", "")}: {r.get("text", "")}' for r in requirements
+    )
     return (
-        DIAGRAM_SYSTEM_INSTRUCTIONS,
+        DIAGRAM_SYSTEM_INSTRUCTIONS + REQUIREMENTS_DRIVEN_CLAUSE,
         "Generate a block definition diagram for the following desired system:\n"
-        f"{desired_system}",
+        f"{desired_system}\n\n"
+        f"REQUIREMENTS THE DESIGN MUST SATISFY:\n{req_lines}",
     )
 
 

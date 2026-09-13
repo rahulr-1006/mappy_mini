@@ -60,8 +60,15 @@ async def _generate_diagram(payload: GenerateDiagramRequest, source: str = "live
         log.append(message)
         storage.log_event(message)
 
-    system, prompt = build_diagram_prompt(payload.prompt)
-    note(f"Generating block diagram with model={payload.model} for prompt: {payload.prompt!r}")
+    requirements = storage.list_model_elements()
+    system, prompt = build_diagram_prompt(payload.prompt, requirements)
+    if requirements:
+        note(
+            f"Generating block diagram with model={payload.model} from "
+            f"{len(requirements)} kept requirement(s) for prompt: {payload.prompt!r}"
+        )
+    else:
+        note(f"Generating block diagram with model={payload.model} for prompt: {payload.prompt!r}")
 
     try:
         initial = await generate_json(prompt, payload.model, system)

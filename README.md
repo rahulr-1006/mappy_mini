@@ -51,6 +51,11 @@ problem rather than the finished product:
 Diagrams get the same treatment with different rules: validation there is
 referential integrity and repair re-prompts the whole graph rather than one node.
 
+Diagram generation also reads whatever requirements you have kept, so the design
+follows from them rather than being drafted alongside them. On a ground station
+example this took the proposed trace links from 5 to 10 and dropped the blocks
+satisfying no requirement from 7 to 1.
+
 ---
 
 ## Architecture
