@@ -64,8 +64,8 @@ referential integrity and repair re-prompts the whole graph rather than one node
                                │  by model id   │   └─────────────────┘
                                └───────┬────────┘
                                        ▼
-                              data/state.json
-                   (model elements, diagram, activity + eval logs)
+                               data/mappy.db
+                   (model elements, diagram, traces, activity + eval logs)
 ```
 
 `llm.py` dispatches on the model id and both return the same result shape, so the rule
@@ -202,7 +202,7 @@ backend/app/
   judge.py            semantic review scoring, cross-tabbed with the rules
   evaluation.py       metrics, cost model, aggregation
   eval_suite.py       golden prompt set
-  storage.py          JSON persistence behind a lock
+  storage.py          SQLite persistence
   routes/             requirements, diagram, traces, evaluations, models,
                       elements, log
 frontend/src/
@@ -245,5 +245,5 @@ Stated plainly, because they bound what this is useful for:
   round-trip into Cameo or Rhapsody.
 - **Duplicate detection is string similarity**, so it catches restatements, not
   two differently-worded requirements that mean the same thing.
-- **JSON file storage** — single user, no concurrent writers. Isolated behind
-  `storage.py` so the swap to a real database touches one module.
+- **Local SQLite database** — single user, no auth. Everything goes through
+  `storage.py`, so pointing it at a server database touches one module.
