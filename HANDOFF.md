@@ -22,14 +22,17 @@ director, a tech lead, and a lead SWE, who will review the repo directly.
 ## Run it
 
 ```bash
-# backend
-cd backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000
-# frontend
-cd frontend && npm run dev
+./scripts/dev.sh        # setup if needed, start both, wait until each answers
+./scripts/stop.sh       # stop both
 ```
 
 `localhost:5173`. Ollama runs as a brew background service. Standalone diagram
 view at `/diagram-view`.
+
+Don't start the servers by hand unless you have a reason. The frontend fetches
+once on mount, so starting it before the API answers produces a "Load failed"
+banner that never retries — `dev.sh` waits on `/health` to make that race
+impossible. It's also idempotent: re-running it clears the ports first.
 
 Checks: `cd backend && pytest app/tests -q` (12 tests) ·
 `cd frontend && npx oxlint src/ && npx vite build`

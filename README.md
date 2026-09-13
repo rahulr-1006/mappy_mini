@@ -61,29 +61,62 @@ engine, repair loop, and metrics are provider-agnostic.
 
 ## Quickstart
 
-Requires Python 3.12+, Node 18+, and Ollama.
+Requires Python 3.12+, Node 18+, and [Ollama](https://ollama.com).
 
 ```bash
-# model (~4.9 GB)
-ollama pull llama3.1:8b
+ollama pull llama3.1:8b     # ~4.9 GB, one time
+./scripts/dev.sh
+```
 
-# backend
+That's it. The script creates the virtualenv and installs both dependency sets
+on first run, frees the ports if something is already on them, starts the API
+and the dev server, **waits until each actually answers**, and opens the app.
+
+- App — <http://localhost:5173>
+- Full-size diagram — <http://localhost:5173/diagram-view>
+- API docs — <http://localhost:8000/docs>
+
+```bash
+./scripts/dev.sh --no-open   # same, without launching a browser
+./scripts/stop.sh            # stop both servers
+tail -f /tmp/mappy-backend.log
+```
+
+**Optional — hosted models.** Copy `backend/.env.example` to `backend/.env` and
+add an Anthropic API key. Claude models then appear in the model picker
+alongside the local ones. Without a key the app runs fully local and offline.
+
+<details>
+<summary>Running the servers by hand</summary>
+
+```bash
+# terminal 1
 cd backend
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
-# frontend (second terminal)
+# terminal 2 — only after the API answers on :8000
 cd frontend
 npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. The standalone diagram view is at `/diagram-view`.
+The ordering matters. The frontend fetches its data once when the page mounts,
+so if the API isn't answering yet you get a "Load failed" banner that does not
+retry on its own — reload the page once the backend is up. `scripts/dev.sh`
+exists to make that race impossible.
 
-**Optional — hosted models.** Copy `backend/.env.example` to `backend/.env` and
-add an Anthropic API key. Claude models then appear in the model picker
-alongside the local ones. Without a key the app runs fully local and offline.
+</details>
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ERROR: [Errno 48] Address already in use` | A server from a previous session is still running (`nohup`/`&` survives closing the terminal) | `./scripts/stop.sh`, or just re-run `./scripts/dev.sh` — it clears the ports itself |
+| "Load failed" banner, "No models available" | Page mounted before the API was answering | Reload the page. Use `./scripts/dev.sh` to avoid it |
+| Generation fails against a local model | Ollama not running, or the model was never pulled | `ollama serve` and `ollama pull llama3.1:8b` |
+| Claude models missing from the picker | No API key | Add `ANTHROPIC_API_KEY` to `backend/.env` and restart |
 
 ---
 
@@ -147,6 +180,9 @@ frontend/src/
   components/         GenerationForm, RequirementsList, BlockDiagram,
                       EvaluationsPanel, ModelElementsPanel, ActivityLog
   DiagramPage.jsx     standalone full-size diagram route
+scripts/
+  dev.sh              setup + start both servers, wait until each answers
+  stop.sh             stop both servers
 ```
 
 ```bash
