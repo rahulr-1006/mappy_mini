@@ -58,6 +58,8 @@ class GenerationMetrics:
     items: int
     first_pass_rate: float
     success_rate: float
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_record(self) -> dict:
@@ -78,12 +80,16 @@ class MetricsAccumulator:
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.duration_ms = 0.0
+        self.cache_read_tokens = 0
+        self.cache_write_tokens = 0
 
     def add(self, result: LLMResult) -> None:
         self.llm_calls += 1
         self.prompt_tokens += result.prompt_tokens
         self.completion_tokens += result.completion_tokens
         self.duration_ms += result.duration_ms
+        self.cache_read_tokens += result.cache_read_tokens
+        self.cache_write_tokens += result.cache_write_tokens
 
     def finalize(self, items: int, first_pass_rate: float, success_rate: float) -> GenerationMetrics:
         return GenerationMetrics(
@@ -98,6 +104,8 @@ class MetricsAccumulator:
             items=items,
             first_pass_rate=first_pass_rate,
             success_rate=success_rate,
+            cache_read_tokens=self.cache_read_tokens,
+            cache_write_tokens=self.cache_write_tokens,
         )
 
 
@@ -113,6 +121,8 @@ def summarize(records: List[dict]) -> dict:
             "avg_success_rate": 0.0,
             "avg_duration_ms": 0.0,
             "estimated_hosted_cost_totals": {name: 0.0 for name in REFERENCE_RATES},
+            "total_cache_read_tokens": 0,
+            "total_cache_write_tokens": 0,
             "actual_spend_usd": 0.0,
             "by_provider": {},
         }
@@ -154,6 +164,8 @@ def summarize(records: List[dict]) -> dict:
         "avg_success_rate": sum(r["success_rate"] for r in records) / count,
         "avg_duration_ms": total_duration_ms / count,
         "estimated_hosted_cost_totals": cost_totals,
+        "total_cache_read_tokens": sum(r.get("cache_read_tokens", 0) for r in records),
+        "total_cache_write_tokens": sum(r.get("cache_write_tokens", 0) for r in records),
         "actual_spend_usd": round(sum(r.get("actual_cost_usd", 0.0) for r in records), 6),
         "by_provider": by_provider,
     }

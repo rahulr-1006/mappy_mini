@@ -60,11 +60,11 @@ async def _generate_diagram(payload: GenerateDiagramRequest, source: str = "live
         log.append(message)
         storage.log_event(message)
 
-    prompt = build_diagram_prompt(payload.prompt)
+    system, prompt = build_diagram_prompt(payload.prompt)
     note(f"Generating block diagram with model={payload.model} for prompt: {payload.prompt!r}")
 
     try:
-        initial = await generate_json(prompt, payload.model)
+        initial = await generate_json(prompt, payload.model, system)
         acc.add(initial)
     except LLMError as exc:
         note(f"ERROR calling the model: {exc}")
@@ -94,9 +94,9 @@ async def _generate_diagram(payload: GenerateDiagramRequest, source: str = "live
             break
 
         note(f"Diagram failed validation: {', '.join(violations)}. Re-prompting (attempt {reprompts + 1}).")
-        reprompt_prompt = build_diagram_reprompt(json.dumps(data), violations)
+        fix_system, reprompt_prompt = build_diagram_reprompt(json.dumps(data), violations)
         try:
-            fix_result = await generate_json(reprompt_prompt, payload.model)
+            fix_result = await generate_json(reprompt_prompt, payload.model, fix_system)
             acc.add(fix_result)
             data = _parse_diagram_object(fix_result.text)
         except (LLMError, json.JSONDecodeError, ValueError) as exc:

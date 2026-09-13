@@ -35,6 +35,8 @@ class GenerationMetrics(BaseModel):
     timestamp: str
     cost_estimate_usd: Dict[str, float]
     actual_cost_usd: float = 0.0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 class GenerateResponse(BaseModel):

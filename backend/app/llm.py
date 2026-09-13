@@ -14,6 +14,10 @@ class LLMResult:
     prompt_tokens: int
     completion_tokens: int
     duration_ms: float
+    # Providers that cache a stable prompt prefix report these; Ollama
+    # does not, so they stay zero for local generation.
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 class LLMError(Exception):
@@ -24,14 +28,14 @@ def provider_for(model: str) -> str:
     return "anthropic" if model.startswith("claude-") else "ollama"
 
 
-async def generate_json(prompt: str, model: str) -> LLMResult:
+async def generate_json(prompt: str, model: str, system: str | None = None) -> LLMResult:
     # Imported here rather than at module scope so the client modules can
     # import LLMResult from this module without a circular import.
     if provider_for(model) == "anthropic":
         from . import anthropic_client
 
-        return await anthropic_client.generate_json(prompt, model)
+        return await anthropic_client.generate_json(prompt, model, system)
 
     from . import ollama_client
 
-    return await ollama_client.generate_json(prompt, model)
+    return await ollama_client.generate_json(prompt, model, system)

@@ -75,11 +75,11 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
         log.append(message)
         storage.log_event(message)
 
-    prompt = build_generation_prompt(payload.prompt)
+    system, prompt = build_generation_prompt(payload.prompt)
     note(f"Generating requirements with model={payload.model} for prompt: {payload.prompt!r}")
 
     try:
-        initial = await generate_json(prompt, payload.model)
+        initial = await generate_json(prompt, payload.model, system)
         acc.add(initial)
     except LLMError as exc:
         note(f"ERROR calling the model: {exc}")
@@ -108,9 +108,9 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
                 f"Requirement '{current['name']}' failed rules: "
                 f"{', '.join(violations)}. Re-prompting (attempt {reprompts + 1})."
             )
-            reprompt_prompt = build_reprompt(current["text"], violations)
+            fix_system, reprompt_prompt = build_reprompt(current["text"], violations)
             try:
-                fix_result = await generate_json(reprompt_prompt, payload.model)
+                fix_result = await generate_json(reprompt_prompt, payload.model, fix_system)
                 acc.add(fix_result)
                 fixed = _normalize(json.loads(fix_result.text))
                 current = {**current, **fixed}
