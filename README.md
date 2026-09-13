@@ -12,9 +12,9 @@ Four things happen to every generated artifact:
    driving a targeted rewrite rather than a rejection.
 2. **Semantic review** by a second model, scoring what a regex cannot see, such as
    whether a requirement is singular, verifiable, and implementation-free.
-4. **Traceability** linking requirements to the design elements that satisfy
+3. **Traceability** linking requirements to the design elements that satisfy
    them, which makes coverage gaps computable.
-5. **Metering** of tokens, latency, conformance, and cost on every call.
+4. **Metering** of tokens, latency, conformance, and cost on every call.
 
 Runs against a local model through [Ollama](https://ollama.com) by default, or
 against the hosted Anthropic API using the same pipeline.
@@ -43,7 +43,7 @@ problem rather than the finished product:
    three attempts so worst-case cost stays bounded. This ensures that key issues
    are addressed step by step without any hallucinations.
 
-4. **The loop's value is measured, not asserted.** On the benchmark suite,
+3. **The loop's value is measured, not asserted.** On the benchmark suite,
    locally generated requirements pass all rules first try **50%** of the time
    and are valid after self-correction **93%** of the time. That 43-point lift
    is what the validation layer buys.
