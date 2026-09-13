@@ -6,6 +6,7 @@ import { EvaluationsPanel } from './components/EvaluationsPanel'
 import { GenerationForm } from './components/GenerationForm'
 import { ModelElementsPanel } from './components/ModelElementsPanel'
 import { RequirementsList } from './components/RequirementsList'
+import { TraceabilityPanel } from './components/TraceabilityPanel'
 import './App.css'
 
 function App() {
@@ -30,6 +31,14 @@ function App() {
 
   const [evaluations, setEvaluations] = useState({ records: [], summary: null })
   const [runningSuite, setRunningSuite] = useState(false)
+  const [judgeResult, setJudgeResult] = useState(null)
+  const [judging, setJudging] = useState(false)
+
+  const [coverage, setCoverage] = useState(null)
+  const [traces, setTraces] = useState([])
+  const [suggestions, setSuggestions] = useState([])
+  const [suggesting, setSuggesting] = useState(false)
+  const [savingTraces, setSavingTraces] = useState(false)
 
   const [error, setError] = useState(null)
 
@@ -49,6 +58,12 @@ function App() {
     setEvaluations(await api.getEvaluations())
   }, [])
 
+  const refreshTraces = useCallback(async () => {
+    const [cov, links] = await Promise.all([api.getCoverage(), api.getTraces()])
+    setCoverage(cov)
+    setTraces(links)
+  }, [])
+
   useEffect(() => {
     async function loadInitial() {
       try {
@@ -58,6 +73,7 @@ function App() {
           refreshLog(),
           refreshDiagram(),
           refreshEvaluations(),
+          refreshTraces(),
         ])
         setModels(modelsRes.models)
         setDefaultModel(modelsRes.default)
@@ -66,7 +82,7 @@ function App() {
       }
     }
     loadInitial()
-  }, [refreshElements, refreshLog, refreshDiagram, refreshEvaluations])
+  }, [refreshElements, refreshLog, refreshDiagram, refreshEvaluations, refreshTraces])
 
   async function handleGenerate(payload) {
     setGenerating(true)
@@ -97,7 +113,7 @@ function App() {
         },
       ])
       setDraftRequirements((prev) => prev.filter((_, i) => i !== index))
-      await Promise.all([refreshElements(), refreshLog()])
+      await Promise.all([refreshElements(), refreshLog(), refreshTraces()])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -114,7 +130,7 @@ function App() {
     setError(null)
     try {
       await api.deleteModelElement(id)
-      await Promise.all([refreshElements(), refreshLog()])
+      await Promise.all([refreshElements(), refreshLog(), refreshTraces()])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -142,7 +158,7 @@ function App() {
     setError(null)
     try {
       await api.saveDiagram(draftDiagram.blocks, draftDiagram.connectors)
-      await Promise.all([refreshDiagram(), refreshLog()])
+      await Promise.all([refreshDiagram(), refreshLog(), refreshTraces()])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -163,6 +179,87 @@ function App() {
     }
   }
 
+  async function handleJudge() {
+    setJudging(true)
+    setError(null)
+    try {
+      setJudgeResult(await api.judgeRequirements(defaultModel || models[0]))
+      await Promise.all([refreshLog(), refreshEvaluations()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setJudging(false)
+    }
+  }
+
+  function withNames(links) {
+    const reqName = Object.fromEntries(modelElements.map((r) => [r.id, r.name]))
+    const blockName = Object.fromEntries(savedDiagram.blocks.map((b) => [b.id, b.name]))
+    return links.map((l) => ({
+      ...l,
+      requirement_name: reqName[l.requirement_id] ?? l.requirement_id,
+      block_name: blockName[l.block_id] ?? l.block_id,
+    }))
+  }
+
+  async function handleSuggestTraces() {
+    setSuggesting(true)
+    setError(null)
+    try {
+      const res = await api.suggestTraces(defaultModel || models[0])
+      setSuggestions(withNames(res.suggestions))
+      await Promise.all([refreshLog(), refreshEvaluations()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  async function saveTraces(links) {
+    setSavingTraces(true)
+    setError(null)
+    try {
+      await api.createTraces(
+        links.map(({ requirement_id, block_id, kind, rationale }) => ({
+          requirement_id,
+          block_id,
+          kind,
+          rationale,
+        })),
+      )
+      await Promise.all([refreshTraces(), refreshLog()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingTraces(false)
+    }
+  }
+
+  async function handleAcceptAllTraces() {
+    await saveTraces(suggestions)
+    setSuggestions([])
+  }
+
+  async function handleAcceptTrace(index) {
+    await saveTraces([suggestions[index]])
+    setSuggestions((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function handleDismissTrace(index) {
+    setSuggestions((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  async function handleDeleteTrace(id) {
+    setError(null)
+    try {
+      await api.deleteTrace(id)
+      await Promise.all([refreshTraces(), refreshLog()])
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function openFullDiagramView() {
     window.open('/diagram-view', '_blank', 'noopener')
   }
@@ -171,7 +268,7 @@ function App() {
     setError(null)
     try {
       await api.clearDiagram()
-      await Promise.all([refreshDiagram(), refreshLog()])
+      await Promise.all([refreshDiagram(), refreshLog(), refreshTraces()])
     } catch (err) {
       setError(err.message)
     }
@@ -212,6 +309,13 @@ function App() {
             </button>
             <button
               type="button"
+              className={tab === 'traceability' ? 'active' : ''}
+              onClick={() => setTab('traceability')}
+            >
+              Traceability
+            </button>
+            <button
+              type="button"
               className={tab === 'evaluations' ? 'active' : ''}
               onClick={() => setTab('evaluations')}
             >
@@ -241,6 +345,22 @@ function App() {
             </>
           )}
 
+          {tab === 'traceability' && (
+            <TraceabilityPanel
+              coverage={coverage}
+              traces={traces}
+              blocks={savedDiagram.blocks}
+              suggestions={suggestions}
+              suggesting={suggesting}
+              saving={savingTraces}
+              onSuggest={handleSuggestTraces}
+              onAcceptAll={handleAcceptAllTraces}
+              onAcceptOne={handleAcceptTrace}
+              onDismissOne={handleDismissTrace}
+              onDeleteTrace={handleDeleteTrace}
+            />
+          )}
+
           {tab === 'evaluations' && (
             <EvaluationsPanel
               records={evaluations.records}
@@ -248,6 +368,9 @@ function App() {
               model={defaultModel || models[0] || 'the default model'}
               running={runningSuite}
               onRunSuite={handleRunSuite}
+              judgeResult={judgeResult}
+              judging={judging}
+              onJudge={handleJudge}
             />
           )}
 

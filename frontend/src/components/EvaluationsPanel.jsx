@@ -19,6 +19,9 @@ export function EvaluationsPanel({
   model,
   running,
   onRunSuite,
+  judgeResult,
+  judging,
+  onJudge,
 }) {
   const costs = summary?.estimated_hosted_cost_totals ?? {}
   const ordered = [...records].reverse()
@@ -119,6 +122,68 @@ export function EvaluationsPanel({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="panel">
+        <div className="diagram-panel-heading">
+          <h2>Semantic review</h2>
+          <button type="button" className="link-button" onClick={onJudge} disabled={judging}>
+            {judging ? 'Reviewing…' : 'Run semantic review'}
+          </button>
+        </div>
+        <p className="empty-state">
+          The rule engine is lexical — it checks how a requirement is written,
+          not what it says. A second model scores the same requirements on
+          criteria a regex cannot reach, so the gap between the two is
+          measurable rather than assumed.
+        </p>
+
+        {judgeResult?.summary?.reviewed > 0 && (
+          <>
+            <div className="stat-grid">
+              <div className="stat-card">
+                <div className="stat-value">{judgeResult.summary.mean_score}</div>
+                <div className="stat-label">Mean score</div>
+                <div className="stat-hint">out of 5, across all criteria</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{judgeResult.summary.flagged.length}</div>
+                <div className="stat-label">Flagged</div>
+                <div className="stat-hint">scored below 3.5</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">
+                  {judgeResult.summary.passed_rules_but_judge_flagged}
+                </div>
+                <div className="stat-label">Rule-engine blind spots</div>
+                <div className="stat-hint">passed the rules, failed review</div>
+              </div>
+            </div>
+
+            <ul className="cost-list">
+              {Object.entries(judgeResult.summary.criteria_means).map(([k, v]) => (
+                <li key={k}>
+                  <span>{k.replace(/_/g, ' ')}</span>
+                  <strong>{v}</strong>
+                </li>
+              ))}
+            </ul>
+
+            <ul className="requirement-list" style={{ marginTop: 16 }}>
+              {judgeResult.reviews.map((r) => (
+                <li key={r.index} className="requirement-card">
+                  <div className="requirement-header">
+                    <span className={`badge${r.mean < 3.5 ? ' badge-warn' : ' badge-accent'}`}>
+                      {r.mean} / 5
+                    </span>
+                    <span className="badge">{r.name}</span>
+                  </div>
+                  <p className="requirement-text">{r.comment}</p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
 
       <div className="panel">

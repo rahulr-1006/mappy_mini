@@ -483,6 +483,74 @@ button {
   }
 }
 
+/* traceability matrix */
+
+.matrix .sticky-col {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.matrix thead .sticky-col {
+  background: var(--code-bg);
+}
+
+.matrix th.rot {
+  font-size: 11px;
+  font-weight: 500;
+  max-width: 92px;
+  white-space: normal;
+  line-height: 1.25;
+  vertical-align: bottom;
+}
+
+.matrix td.cell {
+  text-align: center;
+  padding: 6px 4px;
+}
+
+.cell-empty {
+  color: var(--border);
+}
+
+.cell-link {
+  background: none;
+  border: none;
+  margin-top: 0;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.cell-link:hover {
+  background: var(--accent-bg);
+}
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+.dot-ok {
+  background: #16a34a;
+}
+
+.dot-gap {
+  background: #d97706;
+}
+
 /* activity log */
 
 .log-list {

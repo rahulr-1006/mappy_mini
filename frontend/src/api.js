@@ -58,7 +58,31 @@ export const api = {
 
   clearDiagram: () => request('/diagram', { method: 'DELETE' }),
 
+  getTraces: () => request('/traces'),
+
+  getCoverage: () => request('/traces/coverage'),
+
+  suggestTraces: (model) =>
+    request('/traces/suggest', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    }),
+
+  createTraces: (traces) =>
+    request('/traces', {
+      method: 'POST',
+      body: JSON.stringify({ traces }),
+    }),
+
+  deleteTrace: (id) => request(`/traces/${id}`, { method: 'DELETE' }),
+
   getEvaluations: () => request('/evaluations'),
+
+  judgeRequirements: (model) =>
+    request('/evaluations/judge', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    }),
 
   runEvaluationSuite: (model) =>
     request('/evaluations/run-suite', {
