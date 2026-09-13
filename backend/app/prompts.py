@@ -93,8 +93,6 @@ Return ONLY a JSON object, no other text before or after it, with exactly two fi
 
 Each block is an object with fields: "id" (a short lowercase slug with no spaces, e.g. "guidance_avionics"), "name" (a human-readable block name, 2-4 words), "description" (5-15 words on the block's main function), and "isRoot" (boolean). Exactly ONE block must have "isRoot": true, representing the overall system being modeled; every other block is a major subsystem of it.
 
-Identify the major engineering subsystems the described system would actually need, drawing on standard subsystem categories where relevant to the domain (for example: propulsion, structures, avionics/guidance and navigation, power, thermal, recovery, ground support/operations, payload/interfaces, communications) — adapt these to whatever the system actually is, and skip any that don't apply. A thorough top-level diagram typically has at least 6-9 subsystem blocks, not just 2-3; err on the side of naming more distinct subsystems rather than lumping unrelated functions into one block.
-
 Each connector is an object with fields: "id" (a short lowercase slug), "source" (the id of one block), "target" (the id of another block), "kind", and "label" (a short phrase naming the interface or relationship, e.g. "electrical power", "command signal", "structural mount", "propellant flow", "telemetry downlink").
 
 "kind" must be exactly one of: composition, aggregation, association, dependency, generalization.
@@ -106,11 +104,18 @@ Each connector is an object with fields: "id" (a short lowercase slug), "source"
 Every block except the root must be reachable from the root, directly or transitively, through at least one connector. Do not invent block ids in a connector that don't appear in "blocks"."""
 
 
+BREADTH_CLAUSE = """
+
+Identify the major engineering subsystems the described system would actually need, drawing on standard subsystem categories where relevant to the domain (for example: propulsion, structures, avionics/guidance and navigation, power, thermal, recovery, ground support/operations, payload/interfaces, communications) — adapt these to whatever the system actually is, and skip any that don't apply. A thorough top-level diagram typically has at least 6-9 subsystem blocks, not just 2-3; err on the side of naming more distinct subsystems rather than lumping unrelated functions into one block."""
+
+
 REQUIREMENTS_DRIVEN_CLAUSE = """
 
-You will also be given the requirements this system has to meet. The design must follow from them: every requirement should have at least one block that plausibly fulfils it, and a reader should be able to point at a block and say which requirement it exists to satisfy.
+You will also be given the requirements this system has to meet, and they define the scope of the design. Every block you produce must exist because a requirement calls for it, and every requirement must have at least one block that fulfils it. A reader should be able to point at any block and name the requirement it serves.
 
-Cover the requirements first, then add whatever further subsystems the system would obviously need but no requirement happens to mention. Do not invent a block purely to look thorough, and do not drop a subsystem just because no requirement names it."""
+Do not add subsystems the requirements do not call for, however standard they would be for this kind of system. A block nothing requires is unjustified scope, and this diagram is reviewed for exactly that.
+
+Let the size of the diagram follow from the requirements. Three requirements should give a small diagram and twenty a large one. Do not pad it out to look thorough, and do not merge separate requirements into one block to make it look tidy."""
 
 
 def build_diagram_prompt(desired_system: str, requirements: list | None = None) -> tuple[str, str]:
@@ -119,8 +124,10 @@ def build_diagram_prompt(desired_system: str, requirements: list | None = None) 
     any. Without them this falls back to generating from the description
     alone."""
     if not requirements:
+        # nothing bounds the scope, so ask for the breadth a system of this
+        # kind would normally have
         return (
-            DIAGRAM_SYSTEM_INSTRUCTIONS,
+            DIAGRAM_SYSTEM_INSTRUCTIONS + BREADTH_CLAUSE,
             "Generate a block definition diagram for the following desired system:\n"
             f"{desired_system}",
         )
