@@ -15,3 +15,6 @@ dist/
 
 # local runtime state
 backend/data/state.json
+
+# macOS
+.DS_Store
