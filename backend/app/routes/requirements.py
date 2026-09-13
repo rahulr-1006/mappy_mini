@@ -125,6 +125,13 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
         if not violations:
             success_count += 1
 
+        if violations:
+            note(
+                f"Requirement '{current['name']}' still breaks "
+                f"{len(violations)} rule(s) after {reprompts} repair attempt(s): "
+                f"{', '.join(violations)}."
+            )
+
         results.append(
             Requirement(
                 stereotype=current["stereotype"],
@@ -132,6 +139,7 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
                 text=current["text"],
                 verifyMethod=current["verifyMethod"],
                 reprompts=reprompts,
+                violations=violations,
             )
         )
 

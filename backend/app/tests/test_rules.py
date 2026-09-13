@@ -109,3 +109,34 @@ def test_find_duplicates_flags_near_identical_requirements():
 def test_find_duplicates_is_empty_for_distinct_requirements():
     requirements = [{"text": GOOD_REQUIREMENT}, {"text": PROPULSION_REQUIREMENT}]
     assert find_duplicates(requirements) == {}
+
+
+def test_a_requirement_that_cannot_be_fixed_keeps_its_violations():
+    """The repair loop is bounded, so some requirements come back still
+    broken. Those must not be presented as if they passed."""
+    from app.models import Requirement
+
+    req = Requirement(
+        stereotype="functionalRequirement",
+        name="Layout",
+        text="The layout shall be designed to accommodate maintenance.",
+        verifyMethod="Inspection",
+        reprompts=3,
+        violations=["superfluous_phrases: uses superfluous phrase(s): be designed to"],
+    )
+
+    assert req.violations
+    assert req.reprompts == 3
+
+
+def test_a_clean_requirement_has_no_violations():
+    from app.models import Requirement
+
+    req = Requirement(
+        stereotype="functionalRequirement",
+        name="Clean",
+        text=GOOD_REQUIREMENT,
+        verifyMethod="Test",
+    )
+
+    assert req.violations == []

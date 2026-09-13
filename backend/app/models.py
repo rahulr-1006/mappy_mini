@@ -17,6 +17,8 @@ class Requirement(BaseModel):
     text: str
     verify_method: str = Field(alias="verifyMethod")
     reprompts: int = 0
+    # rules still broken after the repair budget ran out; empty means clean
+    violations: List[str] = []
 
 
 class GenerationMetrics(BaseModel):

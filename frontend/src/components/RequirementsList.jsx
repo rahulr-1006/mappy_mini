@@ -16,14 +16,26 @@ export function RequirementsList({ requirements, log, keepingKey, onKeep, onDisc
                 <div className="requirement-header">
                   <span className="badge badge-accent">{req.stereotype}</span>
                   <span className="badge">{req.verifyMethod}</span>
-                  {req.reprompts > 0 && (
+                  {req.reprompts > 0 && req.violations?.length === 0 && (
                     <span className="badge badge-warn">
                       repaired ×{req.reprompts}
+                    </span>
+                  )}
+                  {req.violations?.length > 0 && (
+                    <span className="badge badge-fail">
+                      still failing after {req.reprompts} attempt(s)
                     </span>
                   )}
                 </div>
                 <p className="requirement-name">{req.name}</p>
                 <p className="requirement-text">{req.text}</p>
+                {req.violations?.length > 0 && (
+                  <ul className="violation-list">
+                    {req.violations.map((v, i) => (
+                      <li key={i}>{v}</li>
+                    ))}
+                  </ul>
+                )}
                 <div className="requirement-actions">
                   <button type="button" onClick={() => onKeep(req, index)} disabled={keepingKey === key}>
                     {keepingKey === key ? 'Keeping…' : 'Keep'}
