@@ -2,8 +2,18 @@
 
 AI-assisted MBSE tooling. Give it a plain-English system description; it drafts
 requirements that conform to the INCOSE writing rules and a SysML block
-definition diagram, validates both programmatically, and meters what the
-generation cost in tokens, seconds, and dollars.
+definition diagram, traces one to the other, and meters what the generation
+cost in tokens, seconds, and dollars.
+
+Four things happen to every generated artifact:
+
+1. **Lexical validation** against the INCOSE writing rules, with failures
+   driving a targeted rewrite rather than a rejection.
+2. **Semantic review** by a second model, scoring what a regex cannot see —
+   whether a requirement is singular, verifiable, and implementation-free.
+3. **Traceability** linking requirements to the design elements that satisfy
+   them, which makes coverage gaps computable.
+4. **Metering** of tokens, latency, conformance, and cost on every call.
 
 Runs against a local model through [Ollama](https://ollama.com) by default, or
 against the hosted Anthropic API — the same pipeline, so the tradeoff between
@@ -248,10 +258,18 @@ cd frontend && npx oxlint src/ && npx vite build
 
 Stated plainly, because they bound what this is useful for:
 
-- **Validation is lexical, not semantic.** The engine verifies a requirement is
-  *well written*, not that it is correct, necessary, or traceable to a real
-  stakeholder need. A human promotes each requirement into the model; the tool
-  removes conformance drudgery, not the engineer.
+- **Nothing here establishes that a requirement is _correct_.** The rule engine
+  checks how it is written. The semantic reviewer goes further — it catches
+  requirements that bundle several needs or cannot be objectively tested — but
+  the reviewer is itself a language model, not ground truth: it is
+  non-deterministic, it can be wrong, and it has no access to the stakeholder
+  need the requirement is supposed to serve. Treat its scores as a prioritised
+  reading list for a human, not a gate. A human promotes each requirement into
+  the model; the tool removes conformance drudgery, not the engineer.
+- **Trace links are proposed, not derived.** The model infers them from wording
+  overlap between a requirement and a block description. Hallucinated ids are
+  dropped before display, but a plausible-looking wrong link will be shown —
+  which is why nothing persists until a human accepts it.
 - **The 40-word minimum is a proxy, not a literal INCOSE rule** — a cheap stand-in
   for completeness. The vague-terms, absolutes, and escape-clause checks map far
   more directly to the guidance. All the term lists are plain data at the top of
