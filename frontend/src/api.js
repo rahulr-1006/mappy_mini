@@ -37,6 +37,12 @@ export const api = {
       body: JSON.stringify({ elements }),
     }),
 
+  updateModelElement: (id, fields) =>
+    request(`/model-elements/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(fields),
+    }),
+
   deleteModelElement: (id) =>
     request(`/model-elements/${id}`, { method: 'DELETE' }),
 
@@ -85,6 +91,46 @@ export const api = {
     }),
 
   deleteTrace: (id) => request(`/traces/${id}`, { method: 'DELETE' }),
+
+  listDocuments: () => request('/documents'),
+
+  seedDocuments: () => request('/documents/seed', { method: 'POST' }),
+
+  addTextDocument: (name, content) =>
+    request('/documents/text', {
+      method: 'POST',
+      body: JSON.stringify({ name, content }),
+    }),
+
+  uploadDocument: async (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE_URL}/documents/upload`, {
+      method: 'POST',
+      body: form,
+    })
+    if (!res.ok) {
+      let detail = res.statusText
+      try {
+        const body = await res.json()
+        detail = body.detail ? JSON.stringify(body.detail) : detail
+      } catch {
+        // not JSON
+      }
+      throw new Error(`${res.status} ${detail}`)
+    }
+    return res.json()
+  },
+
+  deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
+
+  reindex: () => request('/documents/reindex', { method: 'POST' }),
+
+  searchKnowledge: (query, topK = 6) =>
+    request('/documents/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k: topK }),
+    }),
 
   getEvaluations: () => request('/evaluations'),
 

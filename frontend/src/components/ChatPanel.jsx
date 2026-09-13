@@ -30,15 +30,35 @@ export function ChatPanel({ messages, busy, keepingKey, onSend, onKeep, onClear 
       <div className="chat-thread">
         {messages.length === 0 && (
           <p className="empty-state">
-            Describe a system. If there is not enough detail to write
-            verifiable requirements, you will get questions back rather than
-            invented requirements.
+            Describe a system. The assistant searches the knowledge base
+            first, asks about whatever is still undetermined, and writes
+            requirements once it has enough to work from — rather than
+            inventing them.
           </p>
         )}
 
         {messages.map((m) => (
           <div key={m.id} className={`chat-msg chat-${m.role}`}>
             <div className="chat-bubble">{m.content}</div>
+
+            {m.sources?.length > 0 && (
+              <details className="chat-sources">
+                <summary>
+                  Grounded in {m.sources.length} retrieved passage(s)
+                </summary>
+                <ul>
+                  {m.sources.map((s, i) => (
+                    <li key={i}>
+                      <span className={s.kind === 'model' ? 'badge badge-accent' : 'badge'}>
+                        {s.kind === 'model' ? 'model' : 'document'}
+                      </span>
+                      <span className="source-name">{s.name}</span>
+                      <span className="source-score">{s.score}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
 
             {m.requirements?.length > 0 && (
               <ul className="requirement-list chat-reqs">

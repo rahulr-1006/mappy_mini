@@ -60,14 +60,34 @@ Do not use any of the following words or phrases in requirement text: some, any,
 These restrictions apply to requirement text only. Write normally in "reply"."""
 
 
+RETRIEVAL_GUIDANCE = """
+
+USING THE RETRIEVED CONTEXT:
+
+You are given passages retrieved from the project knowledge base: system documents the engineer has loaded, and the MBSE model built so far. Treat them as the authority on this project.
+
+- Prefer a value from the retrieved context over one you would otherwise assume. A retrieved figure is a project decision; an assumed figure is a guess wearing the same clothes.
+- When a requirement rests on a retrieved value, name the source in "reply" so the engineer can check it, for example "pass duration from MER-CONOPS-002 section 2".
+- The context is retrieved by similarity, so some passages will be irrelevant. Ignore those rather than working them in.
+- Where the context contradicts what the engineer just told you, follow the engineer and say plainly in "reply" that the document says otherwise, naming both values. A conflict an engineer can see is useful; one you silently resolve is a defect.
+- Where the context is silent on something you need, that is still a question worth asking, or an assumption worth declaring. Retrieval covering a topic is not the same as retrieval answering it.
+- Never cite a document that does not appear in the retrieved context."""
+
+
 MUST_PRODUCE_DIRECTIVE = """
 
 IMPORTANT, THIS TURN ONLY: you have already asked for clarification in this conversation and the colleague has answered. Do not ask another question. Return requirements in the "requirements" field this turn, and put any assumption you had to make in "reply". An empty "requirements" array is not an acceptable response to this turn."""
 
 
-def build_chat_prompt(history: list, message: str, must_produce: bool = False) -> tuple[str, str]:
+def build_chat_prompt(
+    history: list,
+    message: str,
+    must_produce: bool = False,
+    context: str = "",
+) -> tuple[str, str]:
     """History is the prior turns, oldest first. Folded into the user half so
-    the instructions stay byte-identical and cacheable."""
+    the instructions stay byte-identical and cacheable, as is the retrieved
+    context, which changes on every turn."""
     lines = []
     for m in history:
         who = "COLLEAGUE" if m["role"] == "user" else "YOU"
@@ -88,12 +108,17 @@ def build_chat_prompt(history: list, message: str, must_produce: bool = False) -
     # stays byte-identical between turns
     suffix = MUST_PRODUCE_DIRECTIVE if must_produce else ""
 
+    system = CHAT_SYSTEM_INSTRUCTIONS + (RETRIEVAL_GUIDANCE if context else "")
+    block = (
+        f"RETRIEVED FROM THE KNOWLEDGE BASE:\n{context}\n\n" if context else ""
+    )
+
     if transcript:
         return (
-            CHAT_SYSTEM_INSTRUCTIONS,
-            f"CONVERSATION SO FAR:\n{transcript}\n\nCOLLEAGUE: {message}{suffix}",
+            system,
+            f"{block}CONVERSATION SO FAR:\n{transcript}\n\nCOLLEAGUE: {message}{suffix}",
         )
-    return (CHAT_SYSTEM_INSTRUCTIONS, f"COLLEAGUE: {message}{suffix}")
+    return (system, f"{block}COLLEAGUE: {message}{suffix}")
 
 
 JUDGE_SYSTEM_INSTRUCTIONS = """You are a senior systems engineer reviewing requirements against INCOSE quality criteria. You are reviewing the requirement's substance, not its grammar -- an automated checker already covers wording.
@@ -185,28 +210,41 @@ Do not add subsystems the requirements do not call for, however standard they wo
 Let the size of the diagram follow from the requirements. Three requirements should give a small diagram and twenty a large one. Do not pad it out to look thorough, and do not merge separate requirements into one block to make it look tidy."""
 
 
-def build_diagram_prompt(desired_system: str, requirements: list | None = None) -> tuple[str, str]:
+DIAGRAM_CONTEXT_CLAUSE = """
+
+You are also given passages retrieved from the project knowledge base: system documents and the model built so far. Use them to name subsystems the way the project names them, and to respect interfaces and constraints the documents already fix. Where a retrieved passage describes an actual interface between subsystems, prefer it to a generic one you would otherwise invent. Ignore retrieved passages with no bearing on the design rather than inventing a block to justify them."""
+
+
+def build_diagram_prompt(
+    desired_system: str,
+    requirements: list | None = None,
+    context: str = "",
+) -> tuple[str, str]:
     """Design should follow from the requirements rather than be drafted
     beside them, so the kept requirements go into the prompt when there are
     any. Without them this falls back to generating from the description
     alone."""
+    context_block = (
+        f"\n\nRETRIEVED FROM THE KNOWLEDGE BASE:\n{context}" if context else ""
+    )
+
     if not requirements:
         # nothing bounds the scope, so ask for the breadth a system of this
         # kind would normally have
         return (
-            DIAGRAM_SYSTEM_INSTRUCTIONS + BREADTH_CLAUSE,
+            DIAGRAM_SYSTEM_INSTRUCTIONS + BREADTH_CLAUSE + (DIAGRAM_CONTEXT_CLAUSE if context else ""),
             "Generate a block definition diagram for the following desired system:\n"
-            f"{desired_system}",
+            f"{desired_system}{context_block}",
         )
 
     req_lines = "\n".join(
         f'- {r.get("name", "")}: {r.get("text", "")}' for r in requirements
     )
     return (
-        DIAGRAM_SYSTEM_INSTRUCTIONS + REQUIREMENTS_DRIVEN_CLAUSE,
+        DIAGRAM_SYSTEM_INSTRUCTIONS + REQUIREMENTS_DRIVEN_CLAUSE + (DIAGRAM_CONTEXT_CLAUSE if context else ""),
         "Generate a block definition diagram for the following desired system:\n"
         f"{desired_system}\n\n"
-        f"REQUIREMENTS THE DESIGN MUST SATISFY:\n{req_lines}",
+        f"REQUIREMENTS THE DESIGN MUST SATISFY:\n{req_lines}{context_block}",
     )
 
 

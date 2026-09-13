@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter
 
-from .. import config, storage
+from .. import config, knowledge, rag, storage
 from ..diagram_rules import validate_diagram
 from ..evaluation import MetricsAccumulator
 from ..models import GenerateDiagramRequest, GenerateDiagramResponse
@@ -43,6 +43,33 @@ def _normalize_connector(item: dict) -> dict:
     }
 
 
+def _system_description(override: str, requirements: List[dict]) -> tuple[str, str]:
+    """What system is this a diagram of?
+
+    The conversation already answers that, so asking for it a second time in
+    a separate box is how the requirements and the diagram end up describing
+    two different systems. Order of preference: an explicit override, then
+    what the engineer actually said in chat, then the requirements alone.
+    """
+    if override.strip():
+        return override.strip(), "the prompt given"
+
+    messages = storage.get_chat_messages()
+    said = [m["content"] for m in messages if m["role"] == "user"]
+    if said:
+        # the opening description plus the detail that followed it; later
+        # turns are usually corrections and belong in the picture too
+        joined = "\n".join(said[:4])
+        return joined[:2000], "the chat conversation"
+
+    if requirements:
+        return (
+            "The system described by the following requirements.",
+            "the kept requirements",
+        )
+    return "", "nothing"
+
+
 def _finish(acc: MetricsAccumulator, items: int, first_pass: bool, success: bool) -> dict:
     metrics = acc.finalize(
         items=items,
@@ -61,14 +88,37 @@ async def _generate_diagram(payload: GenerateDiagramRequest, source: str = "live
         storage.log_event(message)
 
     requirements = storage.list_model_elements()
-    system, prompt = build_diagram_prompt(payload.prompt, requirements)
+    description, origin = _system_description(payload.prompt, requirements)
+
+    if not description:
+        note(
+            "Nothing to diagram: no requirements are in the model and the "
+            "conversation has not described a system yet."
+        )
+        metrics = _finish(acc, items=0, first_pass=False, success=False)
+        return GenerateDiagramResponse(blocks=[], connectors=[], log=log, metrics=metrics)
+
+    # the design is retrieved against the requirements it has to satisfy,
+    # so the documents that shaped them also shape the architecture
+    query = description + "\n" + "\n".join(r.get("text", "") for r in requirements[:8])
+    chunks, method = await knowledge.retrieve(query, top_k=5)
+    if chunks:
+        note(knowledge.describe(chunks, method))
+
+    system, prompt = build_diagram_prompt(
+        description, requirements, context=rag.format_context(chunks)
+    )
     if requirements:
         note(
             f"Generating block diagram with model={payload.model} from "
-            f"{len(requirements)} kept requirement(s) for prompt: {payload.prompt!r}"
+            f"{len(requirements)} kept requirement(s); system description taken "
+            f"from {origin}."
         )
     else:
-        note(f"Generating block diagram with model={payload.model} for prompt: {payload.prompt!r}")
+        note(
+            f"Generating block diagram with model={payload.model} from {origin} "
+            f"with no requirements to bound the scope."
+        )
 
     try:
         initial = await generate_json(prompt, payload.model, system)
@@ -148,6 +198,11 @@ async def save_diagram(payload: dict):
         saved_blocks, saved_connectors, payload.get("prompt")
     )
     storage.log_event(f"Saved diagram with {len(saved_blocks)} block(s) to the model.")
+    result = await knowledge.reindex_model()
+    storage.log_event(
+        f"Re-indexed the model: {result['requirements']} requirement(s), "
+        f"{result['blocks']} block(s), {result['chunks']} chunk(s)."
+    )
     return diagram
 
 
@@ -155,4 +210,5 @@ async def save_diagram(payload: dict):
 async def delete_diagram():
     diagram = storage.clear_diagram()
     storage.log_event("Cleared the saved diagram.")
+    await knowledge.reindex_model()
     return diagram

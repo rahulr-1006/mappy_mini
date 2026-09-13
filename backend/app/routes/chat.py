@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from .. import config, rules, storage
+from .. import config, knowledge, rag, rules, storage
 from ..evaluation import MetricsAccumulator
 from ..llm import LLMError, generate_json
 from ..prompts import build_chat_prompt, build_reprompt
@@ -101,7 +101,22 @@ async def send_message(payload: ChatRequest):
     already_asked = any(
         m["role"] == "assistant" and not m.get("requirements") for m in history
     )
-    system, user = build_chat_prompt(history, payload.message, must_produce=already_asked)
+    # retrieve against the message plus the last thing the colleague said,
+    # so a short follow-up like "what about power?" still carries enough
+    # signal to find the right passage
+    prior = next(
+        (m["content"] for m in reversed(history) if m["role"] == "user"), ""
+    )
+    chunks, method = await knowledge.retrieve(f"{prior}\n{payload.message}".strip())
+    if chunks:
+        storage.log_event(knowledge.describe(chunks, method))
+
+    system, user = build_chat_prompt(
+        history,
+        payload.message,
+        must_produce=already_asked,
+        context=rag.format_context(chunks),
+    )
 
     try:
         result = await generate_json(user, payload.model, system)
@@ -149,7 +164,11 @@ async def send_message(payload: ChatRequest):
             else "No response text was returned."
         )
 
-    msg = storage.add_chat_message("assistant", reply, requirements)
+    sources = [
+        {"name": c.citation(), "kind": c.source_kind, "score": round(c.score, 3)}
+        for c in chunks
+    ]
+    msg = storage.add_chat_message("assistant", reply, requirements, sources=sources)
 
     clean = sum(1 for r in requirements if not r["violations"])
     repaired = sum(1 for r in requirements if r["reprompts"] and not r["violations"])

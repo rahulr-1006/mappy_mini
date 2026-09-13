@@ -7,6 +7,7 @@ from .routes import (
     activity_log,
     chat,
     diagram,
+    documents,
     evaluations,
     model_elements,
     models,
@@ -31,6 +32,7 @@ app.include_router(diagram.router)
 app.include_router(evaluations.router)
 app.include_router(traces.router)
 app.include_router(chat.router)
+app.include_router(documents.router)
 
 
 @app.get("/health")

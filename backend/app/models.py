@@ -63,8 +63,12 @@ class Connector(BaseModel):
 
 
 class GenerateDiagramRequest(BaseModel):
-    prompt: str = Field(..., max_length=4000)
+    """The conversation and the kept requirements are the prompt. `prompt`
+    stays as an override for the case where someone wants to diagram a
+    system they have not talked about."""
+
     model: str
+    prompt: str = Field(default="", max_length=4000)
 
 
 class GenerateDiagramResponse(BaseModel):

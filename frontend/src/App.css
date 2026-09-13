@@ -683,3 +683,181 @@ button {
   color: var(--muted, var(--text));
   text-align: center;
 }
+
+/* --- rehaul: knowledge base, editable requirements, chat sources --------- */
+
+.panel-subtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--text);
+  max-width: 56ch;
+}
+
+.status-line {
+  margin: 12px 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.status-line.status-warn {
+  color: var(--text-h);
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(217, 119, 6, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.4);
+}
+
+/* index summary */
+
+.index-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-h);
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.knowledge-actions {
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.knowledge-search {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.knowledge-search h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.knowledge-search .chat-input {
+  margin-top: 12px;
+}
+
+.knowledge-search input[type='text'] {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
+.search-results {
+  margin-top: 16px;
+}
+
+/* retrieval provenance on a chat turn */
+
+.chat-sources {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.chat-sources summary {
+  cursor: pointer;
+  color: var(--text);
+  padding: 4px 0;
+}
+
+.chat-sources ul {
+  list-style: none;
+  padding: 8px 0 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-sources li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-name {
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.source-score {
+  margin-left: auto;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* inline requirement editing */
+
+.requirement-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.requirement-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.requirement-editor input[type='text'],
+.requirement-editor textarea,
+.requirement-editor select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-weight: 400;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.requirement-editor textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.editor-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+}

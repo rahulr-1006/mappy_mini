@@ -4,30 +4,31 @@ import { ActivityLog } from './components/ActivityLog'
 import { BlockDiagram } from './components/BlockDiagram'
 import { ChatPanel } from './components/ChatPanel'
 import { EvaluationsPanel } from './components/EvaluationsPanel'
-import { GenerationForm } from './components/GenerationForm'
+import { KnowledgePanel } from './components/KnowledgePanel'
 import { ModelElementsPanel } from './components/ModelElementsPanel'
-import { RequirementsList } from './components/RequirementsList'
+import { RequirementsWorkbench } from './components/RequirementsWorkbench'
 import { TraceabilityPanel } from './components/TraceabilityPanel'
 import './App.css'
 
 function App() {
-  const [tab, setTab] = useState('requirements')
+  const [tab, setTab] = useState('chat')
 
   const [models, setModels] = useState([])
   const [defaultModel, setDefaultModel] = useState('')
   const [modelElements, setModelElements] = useState([])
   const [activityLog, setActivityLog] = useState([])
 
-  const [draftRequirements, setDraftRequirements] = useState([])
-  const [generationLog, setGenerationLog] = useState([])
-  const [generating, setGenerating] = useState(false)
-  const [keepingKey, setKeepingKey] = useState(null)
+  const [editingBusyId, setEditingBusyId] = useState(null)
+  const [addingRequirement, setAddingRequirement] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+
+  const [documents, setDocuments] = useState([])
+  const [index, setIndex] = useState(null)
+  const [knowledgeBusy, setKnowledgeBusy] = useState(false)
 
   const [draftDiagram, setDraftDiagram] = useState({ blocks: [], connectors: [] })
   const [diagramLog, setDiagramLog] = useState([])
   const [savedDiagram, setSavedDiagram] = useState({ blocks: [], connectors: [] })
-  const [diagramPrompt, setDiagramPrompt] = useState('')
   const [generatingDiagram, setGeneratingDiagram] = useState(false)
   const [savingDiagram, setSavingDiagram] = useState(false)
 
@@ -68,6 +69,12 @@ function App() {
     setChatMessages(await api.getChat())
   }, [])
 
+  const refreshKnowledge = useCallback(async () => {
+    const res = await api.listDocuments()
+    setDocuments(res.documents)
+    setIndex(res.index)
+  }, [])
+
   const refreshTraces = useCallback(async () => {
     const [cov, links] = await Promise.all([api.getCoverage(), api.getTraces()])
     setCoverage(cov)
@@ -85,6 +92,7 @@ function App() {
           refreshEvaluations(),
           refreshTraces(),
           refreshChat(),
+          refreshKnowledge(),
         ])
         setModels(modelsRes.models)
         setDefaultModel(modelsRes.default)
@@ -93,47 +101,37 @@ function App() {
       }
     }
     loadInitial()
-  }, [refreshElements, refreshLog, refreshDiagram, refreshEvaluations, refreshTraces, refreshChat])
+  }, [refreshElements, refreshLog, refreshDiagram, refreshEvaluations, refreshTraces, refreshChat, refreshKnowledge])
 
-  async function handleGenerate(payload) {
-    setGenerating(true)
+  async function handleUpdateRequirement(id, fields) {
+    setEditingBusyId(id)
     setError(null)
     try {
-      const res = await api.generateRequirements(payload)
-      setDraftRequirements(res.requirements)
-      setGenerationLog(res.log)
-      await Promise.all([refreshLog(), refreshEvaluations()])
+      await api.updateModelElement(id, fields)
+      await Promise.all([refreshElements(), refreshLog(), refreshKnowledge()])
     } catch (err) {
       setError(err.message)
     } finally {
-      setGenerating(false)
+      setEditingBusyId(null)
     }
   }
 
-  async function handleKeep(requirement, index) {
-    const key = `${requirement.name}-${index}`
-    setKeepingKey(key)
+  async function handleCreateRequirement(draft) {
+    setAddingRequirement(true)
     setError(null)
     try {
-      await api.createModelElements([
-        {
-          stereotype: requirement.stereotype,
-          name: requirement.name,
-          text: requirement.text,
-          verifyMethod: requirement.verifyMethod,
-        },
+      await api.createModelElements([draft])
+      await Promise.all([
+        refreshElements(),
+        refreshLog(),
+        refreshTraces(),
+        refreshKnowledge(),
       ])
-      setDraftRequirements((prev) => prev.filter((_, i) => i !== index))
-      await Promise.all([refreshElements(), refreshLog(), refreshTraces()])
     } catch (err) {
       setError(err.message)
     } finally {
-      setKeepingKey(null)
+      setAddingRequirement(false)
     }
-  }
-
-  function handleDiscard(index) {
-    setDraftRequirements((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function handleDelete(id) {
@@ -141,7 +139,12 @@ function App() {
     setError(null)
     try {
       await api.deleteModelElement(id)
-      await Promise.all([refreshElements(), refreshLog(), refreshTraces()])
+      await Promise.all([
+        refreshElements(),
+        refreshLog(),
+        refreshTraces(),
+        refreshKnowledge(),
+      ])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -149,13 +152,12 @@ function App() {
     }
   }
 
-  async function handleGenerateDiagram(payload) {
+  async function handleGenerateDiagram() {
     setGeneratingDiagram(true)
     setError(null)
     try {
-      const res = await api.generateDiagram(payload)
+      const res = await api.generateDiagram({ model: defaultModel || models[0] })
       setDraftDiagram({ blocks: res.blocks, connectors: res.connectors })
-      setDiagramPrompt(payload.prompt)
       setDiagramLog(res.log)
       await Promise.all([refreshLog(), refreshEvaluations()])
     } catch (err) {
@@ -169,8 +171,13 @@ function App() {
     setSavingDiagram(true)
     setError(null)
     try {
-      await api.saveDiagram(draftDiagram.blocks, draftDiagram.connectors, diagramPrompt)
-      await Promise.all([refreshDiagram(), refreshLog(), refreshTraces()])
+      await api.saveDiagram(draftDiagram.blocks, draftDiagram.connectors, '')
+      await Promise.all([
+        refreshDiagram(),
+        refreshLog(),
+        refreshTraces(),
+        refreshKnowledge(),
+      ])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -230,7 +237,12 @@ function App() {
           verifyMethod: requirement.verifyMethod,
         },
       ])
-      await Promise.all([refreshElements(), refreshLog(), refreshTraces()])
+      await Promise.all([
+        refreshElements(),
+        refreshLog(),
+        refreshTraces(),
+        refreshKnowledge(),
+      ])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -317,12 +329,29 @@ function App() {
   }
 
   async function handleRegenerateDiagram() {
-    const prompt = savedDiagram.prompt || diagramPrompt
-    if (!prompt) return
-    await handleGenerateDiagram({
-      prompt,
-      model: defaultModel || models[0],
-    })
+    await handleGenerateDiagram()
+  }
+
+  async function withKnowledgeBusy(work) {
+    setKnowledgeBusy(true)
+    setError(null)
+    try {
+      await work()
+      await Promise.all([refreshKnowledge(), refreshLog()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setKnowledgeBusy(false)
+    }
+  }
+
+  const handleUploadDocument = (file) => withKnowledgeBusy(() => api.uploadDocument(file))
+  const handleSeedDocuments = () => withKnowledgeBusy(() => api.seedDocuments())
+  const handleDeleteDocument = (id) => withKnowledgeBusy(() => api.deleteDocument(id))
+  const handleReindex = () => withKnowledgeBusy(() => api.reindex())
+
+  async function handleSearchKnowledge(query) {
+    return api.searchKnowledge(query)
   }
 
   function openFullDiagramView() {
@@ -333,7 +362,12 @@ function App() {
     setError(null)
     try {
       await api.clearDiagram()
-      await Promise.all([refreshDiagram(), refreshLog(), refreshTraces()])
+      await Promise.all([
+        refreshDiagram(),
+        refreshLog(),
+        refreshTraces(),
+        refreshKnowledge(),
+      ])
     } catch (err) {
       setError(err.message)
     }
@@ -360,17 +394,17 @@ function App() {
           <div className="tab-bar">
             <button
               type="button"
-              className={tab === 'requirements' ? 'active' : ''}
-              onClick={() => setTab('requirements')}
-            >
-              Requirements
-            </button>
-            <button
-              type="button"
               className={tab === 'chat' ? 'active' : ''}
               onClick={() => setTab('chat')}
             >
               Chat
+            </button>
+            <button
+              type="button"
+              className={tab === 'requirements' ? 'active' : ''}
+              onClick={() => setTab('requirements')}
+            >
+              Requirements{modelElements.length > 0 ? ` (${modelElements.length})` : ''}
             </button>
             <button
               type="button"
@@ -388,6 +422,13 @@ function App() {
             </button>
             <button
               type="button"
+              className={tab === 'knowledge' ? 'active' : ''}
+              onClick={() => setTab('knowledge')}
+            >
+              Knowledge{index?.documents ? ` (${index.documents})` : ''}
+            </button>
+            <button
+              type="button"
               className={tab === 'evaluations' ? 'active' : ''}
               onClick={() => setTab('evaluations')}
             >
@@ -396,25 +437,14 @@ function App() {
           </div>
 
           {tab === 'requirements' && (
-            <>
-              <GenerationForm
-                title="Describe the system"
-                placeholder="e.g. an autonomous coffee maker that grinds beans on demand and shuts off if the pot is removed"
-                buttonLabel="Generate requirements"
-                models={models}
-                defaultModel={defaultModel}
-                busy={generating}
-                showSanityCheck
-                onGenerate={handleGenerate}
-              />
-              <RequirementsList
-                requirements={draftRequirements}
-                log={generationLog}
-                keepingKey={keepingKey}
-                onKeep={handleKeep}
-                onDiscard={handleDiscard}
-              />
-            </>
+            <RequirementsWorkbench
+              elements={modelElements}
+              busyId={editingBusyId || deletingId}
+              adding={addingRequirement}
+              onUpdate={handleUpdateRequirement}
+              onCreate={handleCreateRequirement}
+              onDelete={handleDelete}
+            />
           )}
 
           {tab === 'chat' && (
@@ -459,17 +489,35 @@ function App() {
 
           {tab === 'diagram' && (
             <>
-              <GenerationForm
-                title="Describe the system"
-                placeholder="e.g. an autonomous coffee maker that grinds beans on demand and shuts off if the pot is removed"
-                buttonLabel="Generate diagram"
-                models={models}
-                defaultModel={defaultModel}
-                busy={generatingDiagram}
-                onGenerate={handleGenerateDiagram}
-              />
               <div className="panel">
-                <h2>Generated block diagram</h2>
+                <div className="diagram-panel-heading">
+                  <div>
+                    <h2>System diagram</h2>
+                    <p className="panel-subtitle">
+                      Generated from the requirements and the conversation.
+                      There is no separate prompt — describing the system twice
+                      is how the requirements and the design end up describing
+                      two different systems.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateDiagram}
+                    disabled={generatingDiagram || modelElements.length === 0}
+                  >
+                    {generatingDiagram
+                      ? 'Generating…'
+                      : `Generate from ${modelElements.length} requirement(s)`}
+                  </button>
+                </div>
+
+                {modelElements.length === 0 && (
+                  <p className="empty-state">
+                    Nothing to design against yet. Keep some requirements from
+                    Chat first, and the diagram will be scoped to them.
+                  </p>
+                )}
+
                 <BlockDiagram blocks={draftDiagram.blocks} connectors={draftDiagram.connectors} />
                 {draftDiagram.blocks.length > 0 && (
                   <div className="diagram-actions">
@@ -489,6 +537,7 @@ function App() {
                   </details>
                 )}
               </div>
+
               <div className="panel">
                 <div className="diagram-panel-heading">
                   <h2>Saved diagram ({savedDiagram.blocks.length} block(s))</h2>
@@ -499,24 +548,20 @@ function App() {
                 <BlockDiagram blocks={savedDiagram.blocks} connectors={savedDiagram.connectors} />
                 {savedDiagram.blocks.length > 0 && (
                   <>
-                    {savedDiagram.prompt && (
-                      <p className="empty-state">
-                        Change which requirements you have kept, then regenerate
-                        to redesign against the new set.
-                      </p>
-                    )}
+                    <p className="empty-state">
+                      Change which requirements you have kept, then regenerate
+                      to redesign against the new set.
+                    </p>
                     <div className="diagram-actions">
-                      {savedDiagram.prompt && (
-                        <button
-                          type="button"
-                          onClick={handleRegenerateDiagram}
-                          disabled={generatingDiagram}
-                        >
-                          {generatingDiagram
-                            ? 'Regenerating…'
-                            : `Regenerate from ${modelElements.length} requirement(s)`}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={handleRegenerateDiagram}
+                        disabled={generatingDiagram || modelElements.length === 0}
+                      >
+                        {generatingDiagram
+                          ? 'Regenerating…'
+                          : `Regenerate from ${modelElements.length} requirement(s)`}
+                      </button>
                       <button type="button" className="secondary" onClick={handleClearDiagram}>
                         Clear saved diagram
                       </button>
@@ -525,6 +570,19 @@ function App() {
                 )}
               </div>
             </>
+          )}
+
+          {tab === 'knowledge' && (
+            <KnowledgePanel
+              documents={documents}
+              index={index}
+              busy={knowledgeBusy}
+              onUpload={handleUploadDocument}
+              onSeed={handleSeedDocuments}
+              onDelete={handleDeleteDocument}
+              onReindex={handleReindex}
+              onSearch={handleSearchKnowledge}
+            />
           )}
         </div>
 
