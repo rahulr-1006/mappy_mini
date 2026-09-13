@@ -3,7 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
 from .llm import generate_json
-from .routes import activity_log, diagram, evaluations, model_elements, models, requirements
+from .routes import (
+    activity_log,
+    diagram,
+    evaluations,
+    model_elements,
+    models,
+    requirements,
+    traces,
+)
 
 app = FastAPI(title="Mini-MAPPy backend")
 
@@ -20,6 +28,7 @@ app.include_router(model_elements.router)
 app.include_router(activity_log.router)
 app.include_router(diagram.router)
 app.include_router(evaluations.router)
+app.include_router(traces.router)
 
 
 @app.get("/health")

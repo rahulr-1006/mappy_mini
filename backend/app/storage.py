@@ -19,6 +19,7 @@ def _ensure_file() -> None:
                     "activity_log": [],
                     "diagram": {"blocks": [], "connectors": []},
                     "eval_log": [],
+                    "traces": [],
                 },
                 f,
             )
@@ -77,6 +78,35 @@ def clear_diagram() -> dict:
         state["diagram"] = {"blocks": [], "connectors": []}
         _write(state)
         return state["diagram"]
+
+
+def get_traces() -> List[dict]:
+    with _lock:
+        return _read().get("traces", [])
+
+
+def add_traces(traces: List[dict]) -> List[dict]:
+    with _lock:
+        state = _read()
+        existing = state.setdefault("traces", [])
+        # a requirement/block/kind triple is the identity -- adding the same
+        # link twice should not create a duplicate row in the matrix
+        seen = {(t["requirement_id"], t["block_id"], t["kind"]) for t in existing}
+        for t in traces:
+            key = (t["requirement_id"], t["block_id"], t["kind"])
+            if key not in seen:
+                existing.append(t)
+                seen.add(key)
+        _write(state)
+        return existing
+
+
+def delete_trace(trace_id: str) -> List[dict]:
+    with _lock:
+        state = _read()
+        state["traces"] = [t for t in state.get("traces", []) if t.get("id") != trace_id]
+        _write(state)
+        return state["traces"]
 
 
 def get_eval_log() -> List[dict]:
