@@ -15,6 +15,9 @@ dist/
 
 # local runtime state
 backend/data/state.json
+backend/data/mappy.db
+backend/data/mappy.db-wal
+backend/data/mappy.db-shm
 
 # macOS
 .DS_Store

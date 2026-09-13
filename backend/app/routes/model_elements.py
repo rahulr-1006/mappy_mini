@@ -15,7 +15,7 @@ class CreateElementsRequest(BaseModel):
 
 @router.get("")
 async def list_elements():
-    return storage.get_state()["model_elements"]
+    return storage.list_model_elements()
 
 
 @router.post("")

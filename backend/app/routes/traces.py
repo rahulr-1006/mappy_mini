@@ -30,7 +30,7 @@ class SuggestRequest(BaseModel):
 
 
 def _current_sets() -> tuple:
-    requirements = storage.get_state()["model_elements"]
+    requirements = storage.list_model_elements()
     blocks = storage.get_diagram()["blocks"]
     return requirements, blocks
 

@@ -36,7 +36,7 @@ async def judge_requirements(payload: JudgeRequest):
     """Score the kept requirements on criteria the lexical rules cannot see,
     and report where the two signals disagree."""
     log: List[str] = []
-    requirements = storage.get_state()["model_elements"]
+    requirements = storage.list_model_elements()
     acc = MetricsAccumulator(task="judge", model=payload.model, source="live")
 
     def note(message: str) -> None:
