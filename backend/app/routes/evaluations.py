@@ -1,13 +1,23 @@
+import json
+from typing import List
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from .. import config, eval_suite, storage
-from ..evaluation import REFERENCE_RATES, summarize
+from .. import config, eval_suite, rules, storage
+from ..evaluation import REFERENCE_RATES, MetricsAccumulator, summarize
+from ..judge import normalize_review, summarize_reviews
+from ..llm import LLMError, generate_json
+from ..prompts import build_judge_prompt
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 
 class RunSuiteRequest(BaseModel):
+    model: str = config.DEFAULT_MODEL
+
+
+class JudgeRequest(BaseModel):
     model: str = config.DEFAULT_MODEL
 
 
@@ -19,6 +29,76 @@ async def get_evaluations():
         "summary": summarize(records),
         "reference_rates": REFERENCE_RATES,
     }
+
+
+@router.post("/judge")
+async def judge_requirements(payload: JudgeRequest):
+    """Score the kept requirements on criteria the lexical rules cannot see,
+    and report where the two signals disagree."""
+    log: List[str] = []
+    requirements = storage.get_state()["model_elements"]
+    acc = MetricsAccumulator(task="judge", model=payload.model, source="live")
+
+    def note(message: str) -> None:
+        log.append(message)
+        storage.log_event(message)
+
+    def finish(reviews):
+        rule_failures = {
+            i: [f"{v.rule}" for v in rules.validate_requirement_text(r.get("text", ""))]
+            for i, r in enumerate(requirements)
+        }
+        summary = summarize_reviews(reviews, rule_failures)
+        metrics = acc.finalize(
+            items=len(reviews),
+            first_pass_rate=1.0 if reviews else 0.0,
+            success_rate=1.0 if reviews else 0.0,
+        )
+        return {
+            "reviews": [
+                {**r, "name": requirements[r["index"]].get("name", "")}
+                for r in reviews
+                if isinstance(r.get("index"), int) and 0 <= r["index"] < len(requirements)
+            ],
+            "summary": summary,
+            "rule_failures": {str(k): v for k, v in rule_failures.items()},
+            "log": log,
+            "metrics": storage.add_eval_record(metrics.to_record()),
+        }
+
+    if not requirements:
+        note("Semantic review needs kept requirements.")
+        return finish([])
+
+    note(f"Reviewing {len(requirements)} requirement(s) with judge model={payload.model}.")
+
+    try:
+        system, user = build_judge_prompt(requirements)
+        result = await generate_json(user, payload.model, system)
+        acc.add(result)
+    except LLMError as exc:
+        note(f"ERROR calling the judge model: {exc}")
+        return finish([])
+
+    try:
+        data = json.loads(result.text)
+        raw = data.get("reviews", data) if isinstance(data, dict) else data
+        if not isinstance(raw, list):
+            raise ValueError("expected a JSON array of reviews")
+    except (json.JSONDecodeError, ValueError) as exc:
+        note(f"ERROR parsing judge output: {exc}")
+        return finish([])
+
+    reviews = [normalize_review(item) for item in raw]
+    payload_out = finish(reviews)
+    flagged = payload_out["summary"]["flagged"]
+    blind = payload_out["summary"]["passed_rules_but_judge_flagged"]
+    note(
+        f"Semantic review complete: {len(reviews)} reviewed, {len(flagged)} flagged, "
+        f"{blind} of those passed the lexical rules."
+    )
+    payload_out["log"] = log
+    return payload_out
 
 
 @router.post("/run-suite")
