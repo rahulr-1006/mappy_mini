@@ -130,43 +130,6 @@ against the rates in `REFERENCE_RATES` in `backend/app/evaluation.py`:
 | claude-sonnet-5 | 2.00 | 10.00 |
 | claude-opus-5 | 5.00 | 25.00 |
 
-Verified 2026-06-24 against Anthropic's published pricing. Re-check
-<https://www.anthropic.com/pricing> before quoting them, since a stale rate
-table silently reprices every number in this file.
-
 Deriving cost at read time rather than storing it is deliberate: correcting a
 rate reprices history instead of leaving stale figures baked into old records.
 Local generations are free and record a cost of zero.
-
----
-
-## What will not reproduce exactly
-
-Be honest about this when comparing. Three different kinds of number are quoted
-in the README and they have three different reliabilities.
-
-**Deterministic, should match exactly.** The 67 tests, the rule catalog, the
-INCOSE characteristic mapping, and the cost arithmetic for a given token count.
-
-**Stable in shape, not in digits.** The suite and head-to-head rates, token
-counts, and latencies. Both providers sample at a non-zero temperature, so
-first-pass rate and output volume move between runs. The pattern the README
-draws on is what survives re-running: the repair loop closes most of the gap
-between first-pass and final conformance, and the local model produces less
-output than the hosted one. A single run's exact percentage does not survive,
-and the README quotes it as a measurement of one run rather than a benchmark.
-
-Latency depends on your hardware and, for the hosted model, on network and
-server load. The local figures assume the model is already resident. A cold
-first call after `ollama pull` pays the load cost and will look much worse.
-
-**One observed run, reported as such.** The claim that generating a diagram
-from kept requirements took proposed trace links from 5 to 10 and dropped
-orphan blocks from 7 to 1 is a single before-and-after on one ground station
-example, not an averaged result. The procedure reproduces, generate a diagram
-with no requirements kept, then keep a set and regenerate, and the direction
-should hold. The specific integers will not.
-
-Nothing in this file establishes that a generated requirement is *correct*.
-It establishes that the pipeline behaves the way the README says it does. The
-[Limitations](README.md#limitations) section is the honest boundary.
