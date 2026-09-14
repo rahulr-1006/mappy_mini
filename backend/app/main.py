@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import config
-from .llm import generate_json
 from .routes import (
     activity_log,
     chat,
@@ -38,14 +36,3 @@ app.include_router(documents.router)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.get("/dev/ollama-roundtrip")
-async def ollama_roundtrip():
-    prompt = (
-        "Return a JSON array containing one object with fields "
-        "stereotype, name, text, verifyMethod, describing a made-up "
-        "functional requirement for a coffee maker."
-    )
-    result = await generate_json(prompt, config.DEFAULT_MODEL)
-    return {"model": config.DEFAULT_MODEL, "raw_response": result.text}

@@ -240,17 +240,6 @@ def _element_row(row: sqlite3.Row) -> dict:
     }
 
 
-def get_state() -> dict:
-    """Kept for the couple of callers that want everything at once."""
-    return {
-        "model_elements": list_model_elements(),
-        "activity_log": get_activity_log(),
-        "diagram": get_diagram(),
-        "eval_log": get_eval_log(),
-        "traces": get_traces(),
-    }
-
-
 def list_model_elements() -> List[dict]:
     with _lock:
         _ensure_db()
@@ -646,16 +635,6 @@ def replace_chunks(source_kind: str, source_id: str, chunks: List[dict]) -> int:
                 ],
             )
     return len(chunks)
-
-
-def delete_chunks(source_kind: str, source_id: str) -> None:
-    with _lock:
-        _ensure_db()
-        with _connect() as conn:
-            conn.execute(
-                "DELETE FROM rag_chunks WHERE source_kind=? AND source_id=?",
-                (source_kind, source_id),
-            )
 
 
 def list_chunks(source_kind: Optional[str] = None) -> List[dict]:
