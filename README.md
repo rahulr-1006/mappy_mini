@@ -205,11 +205,10 @@ things. Four of those are prototyped below. They are starting points rather
 than answers, and each one has a part I would want to work through with people
 who know the tool.
 
-**Malformed output.** Their promptfoo results report responses that "include
-text before table formatting". The model wraps its array in prose and the
-parser rejects the batch. This seemed worth separating from a rule violation,
-since the content can be fine while only the envelope is wrong. Two layers:
-Ollama runs with `format="json"`, and because the Messages API has no
+**Malformed output.** A model that wraps its array in prose breaks the parser,
+and the whole batch goes with it. This seemed worth separating from a rule
+violation, since the content can be fine while only the envelope is wrong. Two
+layers: Ollama runs with `format="json"`, and because the Messages API has no
 equivalent switch, `_extract_json` strips a markdown fence and uses
 `raw_decode` to take the first complete value. When parsing still fails,
 `_parse_with_recovery` asks again for the envelope alone, bounded at two
@@ -231,8 +230,8 @@ A systems engineer would want to tune both, which is why they are plain data at
 the top of `rules.py`, but tuning them through a config rather than a code edit
 is the obvious next step.
 
-**Harmful or biased content.** The 2023 deck lists this as a limitation of the
-underlying model, and I could not find it addressed in the material I had. A
+**Harmful or biased content.** Their published material names this as a
+limitation of the underlying model, and I could not find it addressed there. A
 profanity or toxicity list over satellite requirements did not seem like it
 would catch anything real. What I tried instead reads bias as a
 systems-engineering concern: a requirement that fixes a human capability, a
@@ -250,8 +249,8 @@ around it matter more than the check:
   it. That is a judgement for a person, which is why `ADVISORY_RULES` is kept
   separate from `RULES`.
 
-*Future Implementation:* this is my interpretation of a one-line limitation in
-a slide deck, and it may not be what they meant by it. The check is also a
+*Future Implementation:* this is my interpretation of a limitation they name in
+a single line, and it may not be what they meant by it. The check is also a
 keyword heuristic underneath, so it will miss an exclusionary requirement
 phrased without the words it looks for. I would want to know whether the
 framing is even the right one before building on it.
