@@ -137,7 +137,8 @@ place that decides when the index is rewritten.
 - **Embeddings are local:** `nomic-embed-text` through Ollama, 768 dimensions,
   cosine similarity, top 6, floor at 0.30. Below that floor a chunk is noise,
   and padding a prompt with noise is how a grounded answer becomes a confidently
-  wrong one.
+  wrong one. It wasn't feasible to set up a vector DB on a cloud service for this
+  demo, some possible options were S3 and Fabric.
 - **Lexical scoring is the fallback,** not the design. If Ollama is unreachable
   the index still answers by term overlap and the UI says which method ran, so a
   missing embedding model degrades retrieval instead of breaking the app.
