@@ -8,8 +8,13 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
-AVAILABLE_MODELS = ["llama3.1:8b", "mistral:7b"]
-DEFAULT_MODEL = "llama3.1:8b"
+AVAILABLE_MODELS = ["llama3.1:8b"]
+
+# Hosted by default because it is what the demo runs on, but a clone with
+# no API key gets the local model instead: /models only offers the hosted
+# ones when a key is set, so defaulting to one without a key would name a
+# model the picker cannot show.
+DEFAULT_MODEL = "claude-haiku-4-5" if ANTHROPIC_API_KEY else AVAILABLE_MODELS[0]
 
 # Hosted models, offered alongside the local ones only when a key is set,
 # so the same prompts can be benchmarked against a hosted API.
