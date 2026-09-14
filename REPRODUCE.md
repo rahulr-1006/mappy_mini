@@ -22,18 +22,12 @@ on first run, so a fresh clone resolves the same versions.
 
 ## Start from a clean slate
 
-**This step is not optional if you want the suite table to match.** The
-evaluation log is cumulative and the suite summary filters the whole stored log
-by `source = "suite"`, so running the suite twice without clearing averages both
-runs together and the second table will not match the first.
+We can clear the evaluation logs, in actual production it can track metrics and long term evaluation costs.
 
 ```bash
 ./scripts/reset.sh --everything    # drops the eval history too
 ./scripts/dev.sh
 ```
-
-`reset.sh` on its own keeps the evaluation history, which is what you want
-between demo takes and not what you want here.
 
 ---
 
