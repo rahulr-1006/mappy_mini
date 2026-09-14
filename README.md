@@ -380,16 +380,53 @@ cd frontend && npx oxlint src/ && npx vite build
 
 Stated plainly, because they bound what this is useful for.
 
-Nothing in this tool tells you a requirement is correct. The rule engine only checks how a requirement is written, and the semantic reviewer goes a step further by catching requirements that bundle several needs together or can't be tested objectively. But that reviewer is a language model, not ground truth. It's non-deterministic, it can be wrong, and it has no visibility into the actual stakeholder need a requirement is supposed to satisfy. I treat its output as a prioritized list for a human to read, not a pass or fail gate. A person still has to decide to promote each requirement into the model. What the tool removes is the drudgery of checking conformance by hand, not the engineer's judgment.
+Nothing here establishes that a requirement is *correct*. The rule engine only
+checks how a requirement is written. The semantic reviewer goes further,
+catching requirements that bundle several needs together or cannot be tested
+objectively, but the reviewer is itself a language model, not ground truth. It
+is non-deterministic, it can be wrong, and it has no visibility into the
+stakeholder need the requirement is supposed to serve. Treat its scores as a
+prioritised reading list for a human, not a pass-or-fail gate. A person still
+promotes each requirement into the model. What the tool removes is the drudgery
+of checking conformance by hand, not the engineer's judgement.
 
-The rule engine has two limits of its own worth naming. The 40-word minimum is a proxy rather than a literal INCOSE rule, a cheap stand-in for completeness; the vague-terms, absolutes, and escape-clause checks map far more directly to the guidance. All the term lists are plain data at the top of `rules.py`, so a systems engineer can tune them without touching the logic. Duplicate detection is string similarity, which means it catches a requirement restated in nearly the same words but not two differently-worded requirements that happen to mean the same thing.
+The rule engine has two limits of its own worth naming. The 40-word minimum is
+a proxy rather than a literal INCOSE rule, a cheap stand-in for completeness;
+the vague-terms, absolutes, and escape-clause checks map far more directly to
+the guidance. All the term lists are plain data at the top of `rules.py`, so a
+systems engineer can tune them without touching the logic. Duplicate detection
+is string similarity, which catches a requirement restated in nearly the same
+words but not two differently-worded requirements that happen to mean the same
+thing.
 
-The same caution applies to trace links. The model proposes them by looking for overlapping wording between a requirement and a block description, so they're inferred, not derived from anything structural. I drop any hallucinated IDs before they're shown, but a link can still look plausible and be wrong, which is exactly why nothing gets written into the model until a person accepts it.
+The same caution applies to trace links. The model proposes them from
+overlapping wording between a requirement and a block description, so they are
+inferred rather than derived from anything structural. Hallucinated ids are
+dropped before display, but a link can still look plausible and be wrong, which
+is exactly why nothing is written into the model until a person accepts it.
 
-There's also no SysML interchange. The tool outputs plain JSON, not XMI, so nothing round-trips into Cameo or Rhapsody. That means the model side of the retrieval index is really the model this tool builds internally, not something parsed out of an actual Cameo project. I did chunk blocks with their interfaces folded in, which is the shape a Cameo parser would need to produce anyway, but I haven't written that parser.
+There is no SysML interchange. Output is application JSON, not XMI, so nothing
+round-trips into Cameo or Rhapsody. The MBSE side of the retrieval index is
+therefore the model *this tool* builds, not something parsed out of an actual
+Cameo project. Blocks are already chunked with their interfaces folded in,
+which is the shape a Cameo parser would need to produce, but that parser is not
+written.
 
-Retrieval has the same failure mode every similarity search has: it returns the nearest chunks, not necessarily the right ones. Ask it something the corpus doesn't actually answer, and it will still hand back its six best guesses instead of admitting it doesn't know. I put a floor at 0.30 to cut the worst of that, and the prompt tells the model to ignore passages that don't bear on the question, but neither of those is a real guarantee. What I can guarantee is that every answer names the passages it drew from, so the engineer can go check the source instead of just trusting the output.
+Retrieval has the failure mode every similarity search has: it returns the
+nearest chunks, not necessarily the correct ones. Ask it something the corpus
+does not answer and it still hands back its six best guesses rather than
+admitting it does not know. The floor at 0.30 drops the worst of that, and the
+prompt tells the model to ignore passages that do not bear on the question, but
+neither is a guarantee. Every answer names the passages it drew from, so the
+engineer can check the source rather than trust the output.
 
-Two operational constraints round it out. Documents have to be UTF-8 text: `.txt` and `.md` are parsed, while PDF and Word are rejected with a message rather than indexed as mojibake. And the database is local SQLite, single user, no auth. Everything goes through `storage.py`, so pointing it at a server database touches one module.
+Two operational constraints round it out. Documents must be UTF-8 text: `.txt`
+and `.md` are parsed, while PDF and Word are rejected with a message rather
+than indexed as mojibake. And the database is local SQLite, single user, no
+auth. Everything goes through `storage.py`, so pointing it at a server database
+touches one module.
 
-Overall it was a fun project to reproduce, and I would love to get insight from the developers themselves on their architecture as well as improvements.
+---
+
+Overall it was a fun project to reproduce, and I would love to get insight from
+the developers themselves on their architecture as well as improvements.
