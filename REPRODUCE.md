@@ -13,11 +13,6 @@
 
 `llama3.1:8b` was used because the machine's 16 GB limitations
 
-Ollama model digests, so you can confirm you are running the same weights.
-
-```bash
-ollama list 
-```
 
 Python and Node dependencies are pinned in `backend/requirements.txt` and
 `frontend/package-lock.json`. `./scripts/dev.sh` installs both from those files
