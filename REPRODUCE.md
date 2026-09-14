@@ -1,16 +1,4 @@
-# Reproducing the numbers
-
-Every figure quoted in the [README](README.md) came from a real run on one
-machine. This file says which command produced which number, what the machine
-was, and which figures will not come back identical if you run them again.
-
-Read the last section before comparing your output to mine. Some of these
-numbers are stable and some are one draw from a distribution, and the
-difference matters.
-
----
-
-## The machine the numbers came from
+# Reproducing the demo
 
 | | |
 |---|---|
