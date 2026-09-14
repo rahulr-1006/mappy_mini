@@ -150,7 +150,7 @@ An LLM asked for INCOSE-conformant requirements will produce plausible prose
 that quietly breaks the rules. This project treats that as the engineering
 problem rather than the finished product.
 
-**The rulebook is executable.** The requirement half of `rules.py` is eight
+**The rulebook is executable.** `rules.py` implements eight requirement
 checks, plus a batch-level near-duplicate detector and one advisory, each
 carrying a stable id and the INCOSE quality characteristic it serves:
 
@@ -184,10 +184,11 @@ validation layer buys.
 
 Diagrams get the same treatment with different rules, in the same file.
 Validation there is referential integrity, and repair re-prompts the whole
-graph rather than one node. Diagram generation also reads whatever requirements you have kept, so the
-design follows from them rather than being drafted alongside them. On a ground
-station example this took the proposed trace links from 5 to 10 and dropped the
-blocks satisfying no requirement from 7 to 1.
+graph rather than one node. Diagram generation also reads whatever
+requirements you have kept, so the design follows from them rather than being
+drafted alongside them. On a ground station example this took the proposed
+trace links from 5 to 10 and dropped the blocks satisfying no requirement
+from 7 to 1.
 
 ---
 
@@ -369,7 +370,7 @@ and every non-LLM validity check — requirement wording, diagram structure,
 trace links — is in `rules.py`, because they all feed the same repair loop.
 
 ```bash
-cd backend && pytest app/tests -q    # 67 tests: rules, traceability, rag, prompts, format recovery, semantic review, storage
+cd backend && pytest app/tests -q    # 67 tests: rules, rag, prompts, recovery, review, storage
 cd frontend && npx oxlint src/ && npx vite build
 ```
 
