@@ -1,5 +1,7 @@
 # Mini-MAPPy
 
+**DEMO:** https://youtu.be/kb3O7bzeyWg
+ 
 AI-assisted MBSE tooling based on MAPPy by Booz Allen Hamilton. Given a plain-text English prompt, it drafts
 requirements that conform to the INCOSE writing rules and a SysML block
 definition diagram, traces one to the other, and meters what the generation
