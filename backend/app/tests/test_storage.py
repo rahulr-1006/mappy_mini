@@ -1,18 +1,14 @@
-import importlib
-
 import pytest
 
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    """A fresh database per test, with no state.json to migrate."""
+    """A fresh database per test."""
     from app import config, storage
 
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
-    monkeypatch.setattr(config, "STATE_FILE", str(tmp_path / "state.json"))
     monkeypatch.setattr(storage, "DB_FILE", str(tmp_path / "test.db"))
     monkeypatch.setattr(storage, "_initialised", False)
-    importlib.reload  # keep the import used
     return storage
 
 

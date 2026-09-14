@@ -1,8 +1,7 @@
 """SQLite persistence.
 
-Public functions are unchanged from the JSON-file version this replaced, so
-nothing upstream had to change. If a state.json is present on first run its
-contents are migrated in, then it is left alone as a backup.
+Every read and write in the app goes through here, so pointing it at a
+server database is a one-module change.
 """
 
 import json
@@ -157,77 +156,6 @@ def _ensure_db() -> None:
         if "sources" not in columns:
             conn.execute("ALTER TABLE chat_messages ADD COLUMN sources TEXT")
     _initialised = True
-    _migrate_from_json()
-
-
-def _migrate_from_json() -> None:
-    """One-off import of the old state.json, if one is sitting there and the
-    database is still empty. The file is left in place as a backup."""
-    legacy = getattr(config, "STATE_FILE", os.path.join(config.DATA_DIR, "state.json"))
-    if not os.path.exists(legacy):
-        return
-
-    with _connect() as conn:
-        already = conn.execute("SELECT COUNT(*) FROM eval_log").fetchone()[0]
-        already += conn.execute("SELECT COUNT(*) FROM model_elements").fetchone()[0]
-    if already:
-        return
-
-    try:
-        with open(legacy) as f:
-            state = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return
-
-    now = datetime.now(timezone.utc).isoformat()
-    with _connect() as conn:
-        for el in state.get("model_elements", []):
-            conn.execute(
-                "INSERT OR IGNORE INTO model_elements "
-                "(id, stereotype, name, text, verify_method, created_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (el.get("id"), el.get("stereotype"), el.get("name"),
-                 el.get("text"), el.get("verifyMethod"), now),
-            )
-
-        diagram = state.get("diagram", {})
-        for i, b in enumerate(diagram.get("blocks", [])):
-            conn.execute(
-                "INSERT OR IGNORE INTO diagram_blocks "
-                "(id, name, description, is_root, position) VALUES (?,?,?,?,?)",
-                (b.get("id"), b.get("name"), b.get("description"),
-                 1 if b.get("isRoot") else 0, i),
-            )
-        for i, c in enumerate(diagram.get("connectors", [])):
-            conn.execute(
-                "INSERT OR IGNORE INTO diagram_connectors "
-                "(id, source, target, kind, label, position) VALUES (?,?,?,?,?,?)",
-                (c.get("id"), c.get("source"), c.get("target"),
-                 c.get("kind"), c.get("label"), i),
-            )
-
-        for t in state.get("traces", []):
-            conn.execute(
-                "INSERT OR IGNORE INTO traces "
-                "(id, requirement_id, block_id, kind, rationale) VALUES (?,?,?,?,?)",
-                (t.get("id"), t.get("requirement_id"), t.get("block_id"),
-                 t.get("kind"), t.get("rationale")),
-            )
-
-        for e in state.get("activity_log", []):
-            conn.execute(
-                "INSERT INTO activity_log (timestamp, message, verbose) VALUES (?,?,?)",
-                (e.get("timestamp", now), e.get("message", ""),
-                 1 if e.get("verbose") else 0),
-            )
-
-        for r in state.get("eval_log", []):
-            values = [r.get(c) for c in EVAL_COLUMNS]
-            conn.execute(
-                f"INSERT INTO eval_log ({','.join(EVAL_COLUMNS)}, cost_estimate_usd) "
-                f"VALUES ({','.join('?' * len(EVAL_COLUMNS))}, ?)",
-                (*values, json.dumps(r.get("cost_estimate_usd", {}))),
-            )
 
 
 def _element_row(row: sqlite3.Row) -> dict:

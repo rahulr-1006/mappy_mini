@@ -1,3 +1,11 @@
+"""What every generation cost, and how good the result was.
+
+Two halves. The metering -- tokens, latency, call count, cost -- is
+mechanical and runs on every generation. The semantic review at the bottom
+is a second model scoring what a regex cannot see, and runs on demand.
+Both end up in the same evaluation log, which is why they live together.
+"""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -15,10 +23,6 @@ REFERENCE_RATES: Dict[str, Dict[str, float]] = {
     "claude-sonnet-5": {"input": 2.00, "output": 10.00},
     "claude-opus-5": {"input": 5.00, "output": 25.00},
 }
-
-# The Batch API runs the same requests asynchronously at half price, which
-# is the relevant comparison for bulk document generation.
-BATCH_DISCOUNT = 0.5
 
 
 def estimate_hosted_cost(prompt_tokens: int, completion_tokens: int) -> Dict[str, float]:
@@ -168,4 +172,85 @@ def summarize(records: List[dict]) -> dict:
         "total_cache_write_tokens": sum(r.get("cache_write_tokens", 0) for r in records),
         "actual_spend_usd": round(sum(r.get("actual_cost_usd", 0.0) for r in records), 6),
         "by_provider": by_provider,
+    }
+
+
+# --------------------------------------------------------------------------
+# Semantic review -- a second model scoring what the rules cannot see
+# --------------------------------------------------------------------------
+#
+# The rule engine in `rules.py` is lexical: it can tell you a requirement
+# says "shall" and avoids "user-friendly", but not whether it bundles three
+# needs into one sentence or states something no test could ever falsify.
+# Those are the defects that survive a clean rule pass and reach a design
+# review.
+#
+# Scoring the same requirements on criteria a regex cannot reach lets the
+# two signals be compared. Where they disagree -- a requirement the rules
+# pass and the judge fails -- is the interesting set, because it bounds
+# what lexical validation is worth.
+
+CRITERIA = ["singular", "verifiable", "implementation_free", "unambiguous", "necessary"]
+
+# Below this mean, a requirement is worth a human's attention regardless of
+# whether it passed the lexical rules.
+CONCERN_THRESHOLD = 3.5
+
+
+def normalize_review(item: dict) -> dict:
+    scores = {}
+    for c in CRITERIA:
+        raw = item.get(c)
+        if raw is None:
+            # absent is not the same as bad -- score 0 marks it ungraded so
+            # it drops out of the mean instead of dragging it to the floor
+            scores[c] = 0
+            continue
+        try:
+            scores[c] = max(1, min(5, int(raw)))
+        except (TypeError, ValueError):
+            scores[c] = 0
+    graded = [v for v in scores.values() if v > 0]
+    return {
+        "index": item.get("index"),
+        **scores,
+        "mean": round(sum(graded) / len(graded), 2) if graded else 0.0,
+        "comment": str(item.get("comment", ""))[:300],
+    }
+
+
+def summarize_reviews(reviews: List[dict], rule_failures: Dict[int, List[str]]) -> dict:
+    """Cross-tabulate the judge against the rule engine.
+
+    `rule_failures` maps requirement index to the lexical violations it has,
+    so an empty list means the rules passed it.
+    """
+    if not reviews:
+        return {
+            "reviewed": 0,
+            "criteria_means": {c: 0.0 for c in CRITERIA},
+            "mean_score": 0.0,
+            "flagged": [],
+            "passed_rules_but_judge_flagged": 0,
+        }
+
+    criteria_means = {
+        c: round(sum(r[c] for r in reviews) / len(reviews), 2) for c in CRITERIA
+    }
+
+    flagged = [r for r in reviews if r["mean"] and r["mean"] < CONCERN_THRESHOLD]
+
+    # the set that matters: clean on the rules, weak on substance
+    blind_spot = sum(
+        1
+        for r in flagged
+        if not rule_failures.get(r["index"], [])
+    )
+
+    return {
+        "reviewed": len(reviews),
+        "criteria_means": criteria_means,
+        "mean_score": round(sum(r["mean"] for r in reviews) / len(reviews), 2),
+        "flagged": flagged,
+        "passed_rules_but_judge_flagged": blind_spot,
     }

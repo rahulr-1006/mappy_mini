@@ -36,10 +36,10 @@ We can clear the evaluation logs, in actual production it can track metrics and 
 This reproduces the six-prompt table under **Evaluation**, and the 50% / 93% figures
 quoted in the README.
 
-Six fixed prompts, three for requirements and three for diagrams, defined in
-`backend/app/eval_suite.py`. They are hardcoded so a prompt change or a model
-change is compared on identical inputs. This was once again mainly for the sake 
-of the demo and for reproducibility.
+Six fixed prompts, three for requirements and three for diagrams, defined at
+the top of `backend/app/routes/evaluations.py`. They are hardcoded so a prompt
+change or a model change is compared on identical inputs. This was once again
+mainly for the sake of the demo and for reproducibility.
 
 ```bash
 curl -X POST localhost:8000/evaluations/run-suite \

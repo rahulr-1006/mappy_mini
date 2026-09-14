@@ -23,12 +23,6 @@ async function request(path, options = {}) {
 export const api = {
   getModels: () => request('/models'),
 
-  generateRequirements: (payload) =>
-    request('/requirements/generate', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
   listModelElements: () => request('/model-elements'),
 
   createModelElements: (elements) =>
@@ -95,12 +89,6 @@ export const api = {
   listDocuments: () => request('/documents'),
 
   seedDocuments: () => request('/documents/seed', { method: 'POST' }),
-
-  addTextDocument: (name, content) =>
-    request('/documents/text', {
-      method: 'POST',
-      body: JSON.stringify({ name, content }),
-    }),
 
   uploadDocument: async (file) => {
     const form = new FormData()

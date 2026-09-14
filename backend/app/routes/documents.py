@@ -3,7 +3,6 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import BaseModel, Field
 
 from .. import knowledge, storage
 
@@ -14,11 +13,6 @@ SEED_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "seed_docs")
 # Uploads are read into memory and chunked, so the ceiling is about keeping
 # a stray binary from becoming a 50MB row rather than about disk.
 MAX_UPLOAD_BYTES = 2_000_000
-
-
-class TextDocumentRequest(BaseModel):
-    name: str = Field(..., max_length=200)
-    content: str = Field(..., max_length=MAX_UPLOAD_BYTES)
 
 
 def _decode(raw: bytes, name: str) -> str:
@@ -56,13 +50,6 @@ async def upload_document(file: UploadFile = File(...)):
     if not content.strip():
         raise HTTPException(status_code=400, detail=f"{name} is empty.")
     return await _ingest(name, content, origin="upload")
-
-
-@router.post("/text")
-async def add_text_document(payload: TextDocumentRequest):
-    if not payload.content.strip():
-        raise HTTPException(status_code=400, detail="Document is empty.")
-    return await _ingest(payload.name, payload.content, origin="paste")
 
 
 async def _ingest(name: str, content: str, origin: str) -> dict:

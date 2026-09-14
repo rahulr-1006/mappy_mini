@@ -45,4 +45,3 @@ CHAT_MAX_REPROMPTS = MAX_REPROMPTS
 MAX_FORMAT_RETRIES = 2
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-STATE_FILE = os.environ.get("STATE_FILE", os.path.join(DATA_DIR, "state.json"))

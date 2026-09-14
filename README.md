@@ -150,9 +150,9 @@ An LLM asked for INCOSE-conformant requirements will produce plausible prose
 that quietly breaks the rules. This project treats that as the engineering
 problem rather than the finished product.
 
-**The rulebook is executable.** `rules.py` implements eight checks, plus a
-batch-level near-duplicate detector and one advisory, each carrying a stable id
-and the INCOSE quality characteristic it serves:
+**The rulebook is executable.** The requirement half of `rules.py` is eight
+checks, plus a batch-level near-duplicate detector and one advisory, each
+carrying a stable id and the INCOSE quality characteristic it serves:
 
 | id | check | characteristic |
 |---|---|---|
@@ -182,9 +182,9 @@ generated requirements pass all rules first try **50%** of the time and are
 valid after self-correction **93%** of the time. That 43-point lift is what the
 validation layer buys.
 
-Diagrams get the same treatment with different rules. Validation there is
-referential integrity, and repair re-prompts the whole graph rather than one
-node. Diagram generation also reads whatever requirements you have kept, so the
+Diagrams get the same treatment with different rules, in the same file.
+Validation there is referential integrity, and repair re-prompts the whole
+graph rather than one node. Diagram generation also reads whatever requirements you have kept, so the
 design follows from them rather than being drafted alongside them. On a ground
 station example this took the proposed trace links from 5 to 10 and dropped the
 blocks satisfying no requirement from 7 to 1.
@@ -326,25 +326,29 @@ diagram of an unrelated system, it correctly proposed nothing.
 
 ## Layout
 
+Nine modules behind the routes, each one a single concern:
+
 ```
 backend/app/
-  llm.py              provider router + shared result type
-  ollama_client.py    local provider
-  anthropic_client.py hosted provider
+  main.py             app wiring, plus /health, /models, /activity-log
+  config.py           models, thresholds, retry budgets, paths
+  models.py           request and response schemas
+  llm.py              provider router, shared result type, both providers
+  prompts.py          system instructions, retrieval guidance, repair prompts
+  rules.py            the rulebook: INCOSE writing checks (8 + duplicates +
+                      1 advisory), SysML diagram validation, trace links
+                      and coverage
   rag.py              chunking, embedding, scoring, no database dependency
   knowledge.py        wires rag.py to storage, owns when the index is rebuilt
-  prompts.py          system instructions, retrieval guidance, repair prompts
-  rules.py            INCOSE rule engine (8 checks + duplicates + 1 advisory)
-  diagram_rules.py    SysML structural/referential validation
-  traceability.py     satisfy/refine/verify links + coverage analysis
-  judge.py            semantic review scoring, cross-tabbed with the rules
-  evaluation.py       metrics, cost model, aggregation
-  eval_suite.py       golden prompt set
+  evaluation.py       metrics, cost model, aggregation, semantic review
   storage.py          SQLite persistence
   seed_docs/          bundled reference corpus (fictional Meridian program)
-  routes/             chat, documents, requirements, diagram, traces,
-                      evaluations, models, elements, log
+  routes/             requirements, diagram, chat, traces, documents,
+                      model-elements, evaluations (+ the golden prompt set)
+  tests/              rules, rag, prompts, format recovery, evaluation, storage
 frontend/src/
+  api.js              one wrapper per endpoint
+  App.jsx             tab shell and shared state
   components/         ChatPanel, RequirementsWorkbench, KnowledgePanel,
                       BlockDiagram, EvaluationsPanel, TraceabilityPanel,
                       ModelElementsPanel, ActivityLog
@@ -356,8 +360,16 @@ scripts/
   stop.sh             stop both servers
 ```
 
+Two boundaries are load-bearing and worth the extra file. `rag.py` has no
+database dependency, which is what makes chunking and scoring testable
+without one; `knowledge.py` is the only place that decides when the index is
+rewritten. Everything else is grouped by what it is for rather than split by
+how big it got: both LLM providers sit behind one dispatcher in `llm.py`,
+and every non-LLM validity check — requirement wording, diagram structure,
+trace links — is in `rules.py`, because they all feed the same repair loop.
+
 ```bash
-cd backend && pytest app/tests -q    # 67 tests: rules, rag, format recovery, traceability, judge
+cd backend && pytest app/tests -q    # 67 tests: rules, traceability, rag, prompts, format recovery, semantic review, storage
 cd frontend && npx oxlint src/ && npx vite build
 ```
 

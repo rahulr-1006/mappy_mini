@@ -4,8 +4,6 @@ cover the recovery."""
 
 import asyncio
 
-import pytest
-
 from app.evaluation import MetricsAccumulator
 from app.llm import LLMError, LLMResult
 from app.routes import requirements as req_route

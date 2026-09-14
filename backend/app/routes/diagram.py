@@ -4,8 +4,7 @@ from typing import List
 
 from fastapi import APIRouter
 
-from .. import config, knowledge, rag, storage
-from ..diagram_rules import validate_diagram
+from .. import config, knowledge, rag, rules, storage
 from ..evaluation import MetricsAccumulator
 from ..models import GenerateDiagramRequest, GenerateDiagramResponse
 from ..llm import LLMError, generate_json
@@ -140,7 +139,7 @@ async def _generate_diagram(payload: GenerateDiagramRequest, source: str = "live
     while True:
         blocks = [_normalize_block(b) for b in data.get("blocks", [])]
         connectors = [_normalize_connector(c) for c in data.get("connectors", [])]
-        violations = validate_diagram(blocks, connectors)
+        violations = rules.validate_diagram(blocks, connectors)
 
         if violations and reprompts == 0:
             first_pass = False

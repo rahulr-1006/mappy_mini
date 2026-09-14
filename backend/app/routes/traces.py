@@ -5,11 +5,10 @@ from typing import List
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from .. import config, storage
+from .. import config, rules, storage
 from ..evaluation import MetricsAccumulator
 from ..llm import LLMError, generate_json
 from ..prompts import build_trace_prompt
-from ..traceability import compute_coverage, validate_trace
 
 router = APIRouter(prefix="/traces", tags=["traces"])
 
@@ -43,7 +42,7 @@ async def list_traces():
 @router.get("/coverage")
 async def coverage():
     requirements, blocks = _current_sets()
-    return compute_coverage(requirements, blocks, storage.get_traces())
+    return rules.compute_coverage(requirements, blocks, storage.get_traces())
 
 
 @router.post("")
@@ -55,7 +54,7 @@ async def create_traces(payload: CreateTracesRequest):
     accepted, rejected = [], []
     for link in payload.traces:
         item = link.model_dump()
-        violations = validate_trace(item, req_ids, block_ids)
+        violations = rules.validate_trace(item, req_ids, block_ids)
         if violations:
             rejected.append({**item, "violations": violations})
             continue
@@ -146,7 +145,7 @@ async def suggest_traces(payload: SuggestRequest):
         }
         # a hallucinated id is the expected failure here, so drop rather than
         # surface links that point at nothing
-        if validate_trace(link, req_ids, block_ids):
+        if rules.validate_trace(link, req_ids, block_ids):
             dropped += 1
             continue
         if (link["requirement_id"], link["block_id"], link["kind"]) in existing:

@@ -18,7 +18,7 @@ import math
 import re
 import struct
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import List, Sequence
 
 import httpx
 

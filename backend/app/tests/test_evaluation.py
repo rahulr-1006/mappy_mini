@@ -1,4 +1,4 @@
-from app.judge import normalize_review, summarize_reviews
+from app.evaluation import normalize_review, summarize_reviews
 
 
 def review(index, score, comment="x"):
