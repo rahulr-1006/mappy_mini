@@ -265,7 +265,8 @@ baked into old records.
 
 A fixed golden set of six prompts, three for requirements and three for
 diagrams, re-runs on demand, so a prompt or model change is compared on
-identical inputs:
+identical inputs. [REPRODUCE.md](REPRODUCE.md) maps every number below to the
+command that produced it, and says which of them survive a re-run:
 
 ```bash
 curl -X POST localhost:8000/evaluations/run-suite \
