@@ -1,3 +1,5 @@
+"""The committed MBSE model elements."""
+
 import uuid
 from typing import List, Optional
 
@@ -14,8 +16,6 @@ class CreateElementsRequest(BaseModel):
 
 
 class UpdateElementRequest(BaseModel):
-    """Every field optional: the engineer may be fixing one word of the text
-    or reclassifying the stereotype, and should not have to resend the rest."""
 
     stereotype: Optional[str] = None
     name: Optional[str] = Field(default=None, max_length=200)
@@ -24,9 +24,6 @@ class UpdateElementRequest(BaseModel):
 
 
 def _check(element: dict) -> List[str]:
-    """The same rulebook the generated requirements face. A requirement an
-    engineer typed by hand is not exempt -- the checker exists because
-    people break these rules too."""
     violations = []
     if element.get("stereotype") not in config.ALLOWED_STEREOTYPES:
         violations.append(f"invalid stereotype '{element.get('stereotype', '')}'")
@@ -56,7 +53,6 @@ async def create_elements(payload: CreateElementsRequest):
     storage.add_model_elements(elements)
     storage.log_event(f"Created {len(elements)} model element(s).")
 
-    # what the tool writes becomes what the tool can retrieve
     result = await knowledge.reindex_model()
     storage.log_event(
         f"Re-indexed the model: {result['requirements']} requirement(s), "

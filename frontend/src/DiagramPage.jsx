@@ -37,7 +37,7 @@ export function DiagramPage() {
     <div className="diagram-page">
       <header className="diagram-page-header">
         <div>
-          <h1>Mini-MAPPy — System Diagram</h1>
+          <h1>Mini-MAPPy System Diagram</h1>
           <p>Showing the diagram currently saved to the model.</p>
         </div>
         <button type="button" onClick={handleRefresh} disabled={loading}>

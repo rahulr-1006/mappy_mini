@@ -1,3 +1,5 @@
+"""The FastAPI app, plus the few endpoints small enough to live here."""
+
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,11 +25,6 @@ app.include_router(chat.router)
 app.include_router(documents.router)
 
 
-# The three endpoints with no logic behind them live here rather than in
-# their own route modules, since a router file per one-line handler is more
-# structure than it buys.
-
-
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -40,8 +37,6 @@ async def activity_log():
 
 @app.get("/models")
 async def list_models():
-    """Local Ollama models actually pulled on this machine, plus the hosted
-    Anthropic models when an API key is configured."""
     names: list = []
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

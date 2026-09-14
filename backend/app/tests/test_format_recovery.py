@@ -1,6 +1,4 @@
-"""The failure the source material names: a model wraps its array in prose
-and the parser rejects the whole batch. Detection was already there; these
-cover the recovery."""
+"""Tests for recovering a batch when the model wraps its JSON in prose."""
 
 import asyncio
 
@@ -13,7 +11,6 @@ PREAMBLE = "Certainly! Here are the requirements you asked for:\n\n" + GOOD
 
 
 def _run(text, replies, monkeypatch):
-    """Drive the recovery with a scripted sequence of model replies."""
     notes = []
     calls = {"n": 0}
 
@@ -41,7 +38,6 @@ def test_clean_json_needs_no_retry(monkeypatch):
 
 
 def test_prose_around_the_array_is_recovered(monkeypatch):
-    # the exact failure mode the source material reported
     items, retries, notes, calls = _run(PREAMBLE, [GOOD], monkeypatch)
 
     assert len(items) == 1
@@ -56,8 +52,6 @@ def test_recovery_is_bounded_and_gives_up_cleanly(monkeypatch):
         "not json at all", ["still not json", "nor this"], monkeypatch
     )
 
-    # bounded by MAX_FORMAT_RETRIES rather than looping on a model that
-    # will not comply
     assert items is None
     assert retries == 2
     assert calls == 2
@@ -65,7 +59,6 @@ def test_recovery_is_bounded_and_gives_up_cleanly(monkeypatch):
 
 
 def test_a_failed_retry_call_does_not_raise(monkeypatch):
-    # the model being unreachable mid-recovery is an ordinary outcome
     items, retries, notes, calls = _run(PREAMBLE, [], monkeypatch)
 
     assert items is None
@@ -82,6 +75,5 @@ def test_retries_are_counted_in_the_metrics(monkeypatch):
     acc = MetricsAccumulator(task="requirements", model="test-model")
     asyncio.run(req_route._parse_with_recovery(PREAMBLE, "test-model", acc, notes.append))
 
-    # the repair cost real tokens; hiding them would understate the run
     assert acc.llm_calls == 1
     assert acc.prompt_tokens == 7

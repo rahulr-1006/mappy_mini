@@ -1,9 +1,6 @@
-"""Provider-neutral LLM entry point, and the two providers behind it.
-
-`generate_json` dispatches on the model id and both providers return the
-same `LLMResult`, so the generation pipeline, the repair loop, and the
-evaluation metrics are provider-agnostic: `claude-*` goes to the Anthropic
-Messages API, anything else goes to local Ollama.
+"""One entry point for generation. Dispatches on the model id: claude-*
+goes to the Anthropic API, anything else goes to local Ollama. Both
+return the same LLMResult so the rest of the pipeline does not care.
 """
 
 from __future__ import annotations
@@ -25,8 +22,6 @@ class LLMResult:
     prompt_tokens: int
     completion_tokens: int
     duration_ms: float
-    # Providers that cache a stable prompt prefix report these; Ollama
-    # does not, so they stay zero for local generation.
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
 
@@ -43,11 +38,6 @@ async def generate_json(prompt: str, model: str, system: str | None = None) -> L
     if provider_for(model) == "anthropic":
         return await _anthropic_generate(prompt, model, system)
     return await _ollama_generate(prompt, model, system)
-
-
-# --------------------------------------------------------------------------
-# Ollama (local)
-# --------------------------------------------------------------------------
 
 
 async def _ollama_generate(prompt: str, model: str, system: str | None) -> LLMResult:
@@ -76,10 +66,6 @@ async def _ollama_generate(prompt: str, model: str, system: str | None) -> LLMRe
     )
 
 
-# --------------------------------------------------------------------------
-# Anthropic (hosted)
-# --------------------------------------------------------------------------
-
 _FENCE_OPEN = re.compile(r"^\s*```(?:json)?\s*", re.IGNORECASE)
 
 _client: anthropic.AsyncAnthropic | None = None
@@ -97,14 +83,6 @@ def _get_client() -> anthropic.AsyncAnthropic:
 
 
 def _extract_json(text: str) -> str:
-    """Return just the JSON value from a chat response.
-
-    Ollama's format="json" mode guarantees the body is nothing but JSON.
-    The Messages API has no such switch, so Claude may wrap the JSON in a
-    markdown fence and follow it with commentary explaining its reasoning.
-    Decoding the first complete value and ignoring the rest handles the
-    fence, the trailing prose, and both together.
-    """
     body = _FENCE_OPEN.sub("", text.strip())
     start = min(
         (i for i in (body.find("{"), body.find("[")) if i != -1),
@@ -115,7 +93,6 @@ def _extract_json(text: str) -> str:
     try:
         value, _ = json.JSONDecoder().raw_decode(body[start:])
     except json.JSONDecodeError:
-        # let the caller's parser produce the error message
         return body[start:].strip()
     return json.dumps(value)
 
@@ -130,23 +107,6 @@ async def _anthropic_generate(prompt: str, model: str, system: str | None) -> LL
         "messages": [{"role": "user", "content": prompt}],
     }
     if system:
-        # The instructions are byte-identical on every call, so mark them
-        # cacheable. Caching is a prefix match -- this only pays off because
-        # the volatile half of the prompt lives in `messages`, after it.
-        #
-        # Measured 2026-09-13: this currently no-ops. A prefix shorter than
-        # the model's minimum cacheable length is silently not cached, and
-        # our instructions are ~700-930 tokens. Probing with a padded
-        # prompt confirmed the plumbing is right -- Sonnet 5 at ~4.5k tokens
-        # wrote the cache on the first call and read it back on the second
-        # (input tokens 932 -> 14). Haiku 4.5 did not cache even at ~2.5k,
-        # so its minimum is higher still.
-        #
-        # Deliberately not padding the prompt to cross that threshold:
-        # paying for thousands of filler input tokens to unlock a discount
-        # on those same tokens is a net loss. This becomes worthwhile if the
-        # instructions genuinely grow -- few-shot examples, or the INCOSE
-        # rule text inline -- at which point it starts working for free.
         kwargs["system"] = [
             {
                 "type": "text",

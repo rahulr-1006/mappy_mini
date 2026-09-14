@@ -1,3 +1,5 @@
+"""Requirement generation: prompt, validate, repair, meter."""
+
 import json
 from typing import List
 
@@ -18,16 +20,11 @@ REQUIREMENT_KEYS = {"stereotype", "name", "text", "verifyMethod"}
 def _parse_requirement_array(raw: str) -> List[dict]:
     data = json.loads(raw)
     if isinstance(data, dict):
-        # some models wrap the array in a top-level key instead of
-        # returning a bare array -- unwrap the first list value found.
         for value in data.values():
             if isinstance(value, list):
                 data = value
                 break
         else:
-            # others ignore the "array" instruction entirely and return a
-            # single bare requirement object -- treat it as a batch of one
-            # rather than discarding the whole generation.
             if REQUIREMENT_KEYS & set(data):
                 data = [data]
     if not isinstance(data, list):
@@ -59,15 +56,6 @@ def _validate(item: dict, run_sanity_check: bool) -> List[str]:
 
 
 async def _parse_with_recovery(text: str, model: str, acc: MetricsAccumulator, note):
-    """Parse the batch, and when the envelope is malformed rather than the
-    content, ask again for the envelope alone.
-
-    A response wrapped in prose or a code fence is a distinct failure from a
-    requirement that breaks a writing rule, and it used to cost the whole
-    batch: one stray sentence of preamble and every requirement in the
-    response was discarded. Returns (items, format_retries), or (None, n)
-    when even the retries came back unparseable.
-    """
     attempt = 0
     current = text
 

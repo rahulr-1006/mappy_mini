@@ -1,3 +1,7 @@
+"""The prompts. System instructions, retrieval guidance, and the repair
+prompts used when a generation breaks a rule or comes back malformed.
+"""
+
 BASE_SYSTEM_INSTRUCTIONS = """You are a model-based systems engineer using SysML and the rules for writing requirements found in INCOSE-TP-2010-006-04. Requirements shall be necessary, implementation independent, unambiguous, complete, singular, feasible, correct, and conforming.
 
 Requirements use the following stereotypes (capitalization matters): designConstraint, extendedRequirement, functionalRequirement, interfaceRequirement, performanceRequirement, physicalRequirement. Every requirement shall be verified by a verifyMethod: Analysis, Demonstration, Inspection, or Test.
@@ -8,8 +12,6 @@ Do not use any of the following words or phrases: some, any, allowable, several,
 
 
 def build_generation_prompt(desired_system: str) -> tuple[str, str]:
-    """(system, user). Split so the stable half can be cached by providers
-    that support it -- it is byte-identical on every call."""
     return (
         BASE_SYSTEM_INSTRUCTIONS,
         "Generate a set of requirements for the following desired system:\n"
@@ -30,11 +32,6 @@ def build_reprompt(original_text: str, violations: list) -> tuple[str, str]:
 
 
 def build_format_reprompt(previous: str, expected: str) -> tuple[str, str]:
-    """A response that is not parseable JSON is a different failure from a
-    requirement that breaks a writing rule, and it needs a different fix:
-    the content may be fine and only the envelope is wrong. Asking again
-    with the rule it broke would be nonsense here -- what it broke is the
-    format contract."""
     excerpt = previous.strip()[:1200]
     return (
         BASE_SYSTEM_INSTRUCTIONS,
@@ -101,16 +98,11 @@ def build_chat_prompt(
     must_produce: bool = False,
     context: str = "",
 ) -> tuple[str, str]:
-    """History is the prior turns, oldest first. Folded into the user half so
-    the instructions stay byte-identical and cacheable, as is the retrieved
-    context, which changes on every turn."""
     lines = []
     for m in history:
         who = "COLLEAGUE" if m["role"] == "user" else "YOU"
         lines.append(f"{who}: {m['content']}")
         for r in m.get("requirements", []):
-            # the checker runs after every turn, so tell the model what it
-            # got wrong -- otherwise it cannot fix anything on request
             if r.get("violations"):
                 lines.append(
                     f'  [your requirement "{r["name"]}" FAILS the rule check: '
@@ -120,8 +112,6 @@ def build_chat_prompt(
                 lines.append(f'  [your requirement "{r["name"]}" passed the rule check]')
     transcript = "\n".join(lines)
 
-    # the directive rides in the user half so the cacheable system half
-    # stays byte-identical between turns
     suffix = MUST_PRODUCE_DIRECTIVE if must_produce else ""
 
     system = CHAT_SYSTEM_INSTRUCTIONS + (RETRIEVAL_GUIDANCE if context else "")
@@ -206,7 +196,7 @@ Each connector is an object with fields: "id" (a short lowercase slug), "source"
 "kind" must be exactly one of: composition, aggregation, association, dependency, generalization.
 - Use "composition" to connect the root system to each of its major subsystems (nearly every subsystem block should have one composition edge from the root).
 - Use "aggregation" for a weaker part-whole relationship, where the part could conceivably exist or be shared independently of the whole.
-- Use "association" or "dependency" liberally to also capture the actual functional/interface relationships BETWEEN subsystems (not just root-to-subsystem composition) — e.g. a power subsystem typically has an edge to every other subsystem that needs electrical power, a guidance/avionics subsystem typically commands propulsion and other actuated subsystems, ground/operations subsystems typically link to avionics for command and telemetry. Aim for at least as many cross-subsystem association/dependency edges as there are composition edges.
+- Use "association" or "dependency" liberally to also capture the actual functional/interface relationships BETWEEN subsystems (not just root-to-subsystem composition). For example, a power subsystem typically has an edge to every other subsystem that needs electrical power, a guidance/avionics subsystem typically commands propulsion and other actuated subsystems, ground/operations subsystems typically link to avionics for command and telemetry. Aim for at least as many cross-subsystem association/dependency edges as there are composition edges.
 - Use "generalization" only when one block is truly a specialization or variant of another block (an "is-a" relationship), not a part-whole one.
 
 Every block except the root must be reachable from the root, directly or transitively, through at least one connector. Do not invent block ids in a connector that don't appear in "blocks"."""
@@ -214,7 +204,7 @@ Every block except the root must be reachable from the root, directly or transit
 
 BREADTH_CLAUSE = """
 
-Identify the major engineering subsystems the described system would actually need, drawing on standard subsystem categories where relevant to the domain (for example: propulsion, structures, avionics/guidance and navigation, power, thermal, recovery, ground support/operations, payload/interfaces, communications) — adapt these to whatever the system actually is, and skip any that don't apply. A thorough top-level diagram typically has at least 6-9 subsystem blocks, not just 2-3; err on the side of naming more distinct subsystems rather than lumping unrelated functions into one block."""
+Identify the major engineering subsystems the described system would actually need, drawing on standard subsystem categories where relevant to the domain (for example: propulsion, structures, avionics/guidance and navigation, power, thermal, recovery, ground support/operations, payload/interfaces, communications). Adapt these to whatever the system actually is, and skip any that don't apply. A thorough top-level diagram typically has at least 6-9 subsystem blocks, not just 2-3; err on the side of naming more distinct subsystems rather than lumping unrelated functions into one block."""
 
 
 REQUIREMENTS_DRIVEN_CLAUSE = """
@@ -236,17 +226,11 @@ def build_diagram_prompt(
     requirements: list | None = None,
     context: str = "",
 ) -> tuple[str, str]:
-    """Design should follow from the requirements rather than be drafted
-    beside them, so the kept requirements go into the prompt when there are
-    any. Without them this falls back to generating from the description
-    alone."""
     context_block = (
         f"\n\nRETRIEVED FROM THE KNOWLEDGE BASE:\n{context}" if context else ""
     )
 
     if not requirements:
-        # nothing bounds the scope, so ask for the breadth a system of this
-        # kind would normally have
         return (
             DIAGRAM_SYSTEM_INSTRUCTIONS + BREADTH_CLAUSE + (DIAGRAM_CONTEXT_CLAUSE if context else ""),
             "Generate a block definition diagram for the following desired system:\n"

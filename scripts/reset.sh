@@ -34,7 +34,7 @@ done
 
 say() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 
-[ -f "$DB" ] || { say "no database at $DB — nothing to clear"; exit 0; }
+[ -f "$DB" ] || { say "no database at $DB, nothing to clear"; exit 0; }
 
 # The backend holds the database open in WAL mode, which allows this
 # second writer. Rows are deleted rather than the file being removed so a
@@ -67,7 +67,7 @@ if curl -s -m 2 "http://localhost:$BACKEND_PORT/health" >/dev/null 2>&1; then
   remaining=$(curl -s -m 5 "http://localhost:$BACKEND_PORT/documents/index" 2>/dev/null || echo '{}')
   say "index now: $remaining"
   echo
-  say "reload the browser tab — the page reads its state once on mount"
+  say "reload the browser tab, the page reads its state once on mount"
 else
   say "backend is not running; start it with ./scripts/dev.sh"
 fi

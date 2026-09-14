@@ -1,3 +1,5 @@
+"""Tests for the rule engine and for traceability coverage."""
+
 import pytest
 
 from app import rules
@@ -91,10 +93,6 @@ def test_validate_requirement_text_aggregates_multiple_violations():
 
 
 def test_find_duplicates_flags_near_identical_requirements():
-    """VAL-9 extension: the per-requirement rules above check each
-    requirement in isolation, so they can't catch the LLM restating the
-    same requirement twice under a different name. This needs a
-    batch-level comparison instead."""
     requirements = [
         {"text": GOOD_REQUIREMENT},
         {"text": GOOD_REQUIREMENT.replace("ten hertz", "10 hertz")},
@@ -115,8 +113,6 @@ def test_find_duplicates_is_empty_for_distinct_requirements():
 
 
 def test_a_requirement_that_cannot_be_fixed_keeps_its_violations():
-    """The repair loop is bounded, so some requirements come back still
-    broken. Those must not be presented as if they passed."""
     from app.models import Requirement
 
     req = Requirement(
@@ -147,8 +143,6 @@ def test_a_clean_requirement_has_no_violations():
 
 class TestRuleIdentifiers:
     def test_every_check_has_an_id_and_a_characteristic(self):
-        # a violation with no catalogue entry would render as "MM-R??",
-        # which is the kind of thing that ships unnoticed
         for name in rules.RULE_CATALOG:
             rule_id, characteristic, intent = rules.RULE_CATALOG[name]
             assert rule_id.startswith("MM-R")
@@ -187,23 +181,16 @@ class TestExclusionaryAssumptions:
         assert "lift" in advisories[0].detail
 
     def test_accepts_the_same_limit_once_a_standard_is_named(self):
-        # the check objects to the limit being arbitrary, not to the limit
         assert rules.review_requirement_text(self.JUSTIFIED) == []
 
     def test_ignores_requirements_that_constrain_no_one(self):
         assert rules.review_requirement_text(self.UNRELATED) == []
 
     def test_advisories_are_not_rule_failures(self):
-        # the repair loop runs off validate_requirement_text; an advisory
-        # appearing there would have a model rewrite the constraint away
         failures = {v.rule for v in rules.validate_requirement_text(self.UNJUSTIFIED)}
         assert "exclusionary_assumption" not in failures
         assert rules.check_exclusionary_assumptions not in rules.RULES
 
-
-# --------------------------------------------------------------------------
-# Traceability: link validation and coverage analysis
-# --------------------------------------------------------------------------
 
 REQS = [
     {"id": "r1", "name": "Landing legs", "stereotype": "functionalRequirement"},
@@ -242,13 +229,10 @@ def test_uncovered_requirement_is_reported():
 
 
 def test_only_satisfy_links_count_toward_coverage():
-    """A requirement that is merely refined or verified is not satisfied --
-    nothing in the design has been committed to building it."""
     traces = [{"requirement_id": "r1", "block_id": "b1", "kind": "refine"}]
     cov = compute_coverage(REQS, BLOCKS, traces)
 
     assert cov["requirements_covered"] == 0
-    # the link still exists, so the block is not an orphan
     assert "b1" not in [b["id"] for b in cov["orphan_blocks"]]
 
 

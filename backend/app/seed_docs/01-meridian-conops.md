@@ -1,4 +1,4 @@
-# Meridian LEO Ground Segment — Concept of Operations
+# Meridian LEO Ground Segment: Concept of Operations
 
 Document MER-CONOPS-002, Revision C. Fictional reference material for the
 Mini-MAPPy demonstration.

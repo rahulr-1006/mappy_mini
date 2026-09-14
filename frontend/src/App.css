@@ -94,8 +94,6 @@ button {
   }
 }
 
-/* badges */
-
 .badge {
   display: inline-flex;
   font-size: 12px;
@@ -137,8 +135,6 @@ button {
   border-color: rgba(217, 119, 6, 0.4);
   color: #d97706;
 }
-
-/* requirements + model elements */
 
 .requirement-list,
 .element-list {
@@ -225,8 +221,6 @@ button {
   }
 }
 
-/* tabs */
-
 .tab-bar {
   display: flex;
   gap: 8px;
@@ -245,8 +239,6 @@ button {
   border-color: var(--accent-border);
   color: var(--accent);
 }
-
-/* diagram */
 
 .diagram-canvas {
   height: 440px;
@@ -277,8 +269,6 @@ button {
   margin-top: 0;
   text-decoration: underline;
 }
-
-/* standalone full-page diagram view */
 
 .diagram-page {
   padding: 24px 32px;
@@ -367,8 +357,6 @@ button {
   margin-top: 0;
 }
 
-/* evaluations */
-
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -450,8 +438,6 @@ button {
   }
 }
 
-/* traceability matrix */
-
 .matrix .sticky-col {
   position: sticky;
   left: 0;
@@ -518,8 +504,6 @@ button {
   background: #d97706;
 }
 
-/* activity log */
-
 .log-list {
   list-style: none;
   margin: 0;
@@ -547,8 +531,6 @@ button {
 .log-message {
   color: var(--text-h);
 }
-
-/* chat */
 
 .chat-panel {
   display: flex;
@@ -630,8 +612,6 @@ button {
   text-align: center;
 }
 
-/* --- rehaul: knowledge base, editable requirements, chat sources --------- */
-
 .panel-subtitle {
   margin: 4px 0 0;
   font-size: 14px;
@@ -652,8 +632,6 @@ button {
   background: rgba(217, 119, 6, 0.12);
   border: 1px solid rgba(217, 119, 6, 0.4);
 }
-
-/* index summary */
 
 .index-stats {
   display: grid;
@@ -717,8 +695,6 @@ button {
   margin-top: 16px;
 }
 
-/* retrieval provenance on a chat turn */
-
 .chat-sources {
   margin: 6px 0 0;
   font-size: 13px;
@@ -755,8 +731,6 @@ button {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-
-/* inline requirement editing */
 
 .requirement-editor {
   display: flex;
@@ -807,9 +781,6 @@ button {
   font-weight: 400;
   color: var(--text);
 }
-
-/* advisories: a judgement call for a person, not a defect to repair, so
-   they read as distinct from a red rule failure */
 
 .badge-advisory {
   background: rgba(2, 132, 199, 0.12);

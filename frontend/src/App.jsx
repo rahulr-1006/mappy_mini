@@ -204,8 +204,6 @@ function App() {
     setHeadToHeadRunning(true)
     setError(null)
     try {
-      // every model the backend offers, so the table is the full picture
-      // rather than whichever two were picked
       setHeadToHead(await api.runHeadToHead(models))
       await Promise.all([refreshEvaluations(), refreshLog()])
     } catch (err) {
@@ -515,7 +513,7 @@ function App() {
                     <h2>System diagram</h2>
                     <p className="panel-subtitle">
                       Generated from the requirements and the conversation.
-                      There is no separate prompt — describing the system twice
+                      There is no separate prompt. Describing the system twice
                       is how the requirements and the design end up describing
                       two different systems.
                     </p>

@@ -1,3 +1,5 @@
+"""Block diagram generation and the saved diagram."""
+
 import json
 import uuid
 from typing import List
@@ -16,7 +18,6 @@ router = APIRouter(prefix="/diagram", tags=["diagram"])
 def _parse_diagram_object(raw: str) -> dict:
     data = json.loads(raw)
     if isinstance(data, list) and data:
-        # some models wrap the object in a one-element array
         data = data[0]
     if not isinstance(data, dict) or "blocks" not in data or "connectors" not in data:
         raise ValueError("expected a JSON object with 'blocks' and 'connectors'")
@@ -43,21 +44,12 @@ def _normalize_connector(item: dict) -> dict:
 
 
 def _system_description(override: str, requirements: List[dict]) -> tuple[str, str]:
-    """What system is this a diagram of?
-
-    The conversation already answers that, so asking for it a second time in
-    a separate box is how the requirements and the diagram end up describing
-    two different systems. Order of preference: an explicit override, then
-    what the engineer actually said in chat, then the requirements alone.
-    """
     if override.strip():
         return override.strip(), "the prompt given"
 
     messages = storage.get_chat_messages()
     said = [m["content"] for m in messages if m["role"] == "user"]
     if said:
-        # the opening description plus the detail that followed it; later
-        # turns are usually corrections and belong in the picture too
         joined = "\n".join(said[:4])
         return joined[:2000], "the chat conversation"
 
@@ -97,8 +89,6 @@ async def _generate_diagram(payload: GenerateDiagramRequest, source: str = "live
         metrics = _finish(acc, items=0, first_pass=False, success=False)
         return GenerateDiagramResponse(blocks=[], connectors=[], log=log, metrics=metrics)
 
-    # the design is retrieved against the requirements it has to satisfy,
-    # so the documents that shaped them also shape the architecture
     query = description + "\n" + "\n".join(r.get("text", "") for r in requirements[:8])
     chunks, method = await knowledge.retrieve(query, top_k=5)
     if chunks:

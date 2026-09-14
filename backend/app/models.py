@@ -1,3 +1,5 @@
+"""Pydantic request and response schemas for the API."""
+
 from typing import Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,9 +19,7 @@ class Requirement(BaseModel):
     text: str
     verify_method: str = Field(alias="verifyMethod")
     reprompts: int = 0
-    # rules still broken after the repair budget ran out; empty means clean
     violations: List[str] = []
-    # judgement calls for a person: reported, never auto-repaired
     advisories: List[str] = []
 
 
@@ -65,9 +65,6 @@ class Connector(BaseModel):
 
 
 class GenerateDiagramRequest(BaseModel):
-    """The conversation and the kept requirements are the prompt. `prompt`
-    stays as an override for the case where someone wants to diagram a
-    system they have not talked about."""
 
     model: str
     prompt: str = Field(default="", max_length=4000)

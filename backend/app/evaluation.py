@@ -1,9 +1,5 @@
-"""What every generation cost, and how good the result was.
-
-Two halves. The metering -- tokens, latency, call count, cost -- is
-mechanical and runs on every generation. The semantic review at the bottom
-is a second model scoring what a regex cannot see, and runs on demand.
-Both end up in the same evaluation log, which is why they live together.
+"""What a generation cost and how good it was. Token and latency metering on
+every call, plus the semantic review scoring that a second model produces.
 """
 
 from __future__ import annotations
@@ -14,10 +10,6 @@ from typing import Dict, List
 
 from .llm import LLMResult, provider_for
 
-# Anthropic first-party API list prices, USD per 1M tokens, verified
-# 2026-06-24. Used to estimate what this workload would cost against a
-# hosted API instead of local Ollama, across three capability tiers.
-# Re-check https://www.anthropic.com/pricing before quoting these.
 REFERENCE_RATES: Dict[str, Dict[str, float]] = {
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
     "claude-sonnet-5": {"input": 2.00, "output": 10.00},
@@ -37,8 +29,6 @@ def estimate_hosted_cost(prompt_tokens: int, completion_tokens: int) -> Dict[str
 
 
 def actual_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """Real money spent on this generation. Local inference is free; a
-    hosted model bills at its own rate."""
     rates = REFERENCE_RATES.get(model)
     if rates is None:
         return 0.0
@@ -136,8 +126,6 @@ def summarize(records: List[dict]) -> dict:
     total_duration_ms = sum(r["duration_ms"] for r in records)
     count = len(records)
 
-    # Recomputed from stored token counts rather than summing each record's
-    # saved estimate, so a rate correction applies to history too.
     cost_totals = estimate_hosted_cost(total_prompt_tokens, total_completion_tokens)
 
     by_provider: Dict[str, dict] = {}
@@ -175,25 +163,8 @@ def summarize(records: List[dict]) -> dict:
     }
 
 
-# --------------------------------------------------------------------------
-# Semantic review -- a second model scoring what the rules cannot see
-# --------------------------------------------------------------------------
-#
-# The rule engine in `rules.py` is lexical: it can tell you a requirement
-# says "shall" and avoids "user-friendly", but not whether it bundles three
-# needs into one sentence or states something no test could ever falsify.
-# Those are the defects that survive a clean rule pass and reach a design
-# review.
-#
-# Scoring the same requirements on criteria a regex cannot reach lets the
-# two signals be compared. Where they disagree -- a requirement the rules
-# pass and the judge fails -- is the interesting set, because it bounds
-# what lexical validation is worth.
-
 CRITERIA = ["singular", "verifiable", "implementation_free", "unambiguous", "necessary"]
 
-# Below this mean, a requirement is worth a human's attention regardless of
-# whether it passed the lexical rules.
 CONCERN_THRESHOLD = 3.5
 
 
@@ -202,8 +173,6 @@ def normalize_review(item: dict) -> dict:
     for c in CRITERIA:
         raw = item.get(c)
         if raw is None:
-            # absent is not the same as bad -- score 0 marks it ungraded so
-            # it drops out of the mean instead of dragging it to the floor
             scores[c] = 0
             continue
         try:
@@ -220,11 +189,6 @@ def normalize_review(item: dict) -> dict:
 
 
 def summarize_reviews(reviews: List[dict], rule_failures: Dict[int, List[str]]) -> dict:
-    """Cross-tabulate the judge against the rule engine.
-
-    `rule_failures` maps requirement index to the lexical violations it has,
-    so an empty list means the rules passed it.
-    """
     if not reviews:
         return {
             "reviewed": 0,
@@ -240,7 +204,6 @@ def summarize_reviews(reviews: List[dict], rule_failures: Dict[int, List[str]]) 
 
     flagged = [r for r in reviews if r["mean"] and r["mean"] < CONCERN_THRESHOLD]
 
-    # the set that matters: clean on the rules, weak on substance
     blind_spot = sum(
         1
         for r in flagged

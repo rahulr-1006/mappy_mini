@@ -1,4 +1,4 @@
-# Meridian Site B — Candidate Site Survey
+# Meridian Site B: Candidate Site Survey
 
 Document MER-SURVEY-042, Revision A. Fictional reference material for the
 Mini-MAPPy demonstration. Upload this during the demo to show a new document

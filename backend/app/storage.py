@@ -1,8 +1,4 @@
-"""SQLite persistence.
-
-Every read and write in the app goes through here, so pointing it at a
-server database is a one-module change.
-"""
+"""SQLite persistence. Every read and write goes through here."""
 
 import json
 import os
@@ -139,7 +135,6 @@ NUMERIC_EVAL_COLUMNS = [
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_FILE, timeout=10.0)
     conn.row_factory = sqlite3.Row
-    # let readers run while a writer holds the file
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
@@ -195,9 +190,6 @@ def add_model_elements(elements: List[dict]) -> dict:
 
 
 def update_model_element(element_id: str, fields: dict) -> Optional[dict]:
-    """Partial update of one requirement. Returns the updated row, or None
-    when the id is unknown, so the route can answer 404 rather than
-    silently succeeding at nothing."""
     columns = {
         "stereotype": "stereotype",
         "name": "name",
@@ -236,7 +228,6 @@ def delete_model_element(element_id: str) -> dict:
         _ensure_db()
         with _connect() as conn:
             conn.execute("DELETE FROM model_elements WHERE id = ?", (element_id,))
-            # a trace pointing at a deleted requirement is dead weight
             conn.execute("DELETE FROM traces WHERE requirement_id = ?", (element_id,))
     return {"model_elements": list_model_elements()}
 
@@ -272,9 +263,6 @@ def get_diagram() -> dict:
 
 def save_diagram(blocks: List[dict], connectors: List[dict],
                  prompt: str | None = None) -> dict:
-    """A saved diagram replaces the previous one, so this is a swap rather
-    than an append. The prompt is kept so the diagram can be regenerated
-    against a changed set of requirements without retyping it."""
     with _lock:
         _ensure_db()
         with _connect() as conn:
@@ -294,7 +282,6 @@ def save_diagram(blocks: List[dict], connectors: List[dict],
                     (c.get("id"), c.get("source"), c.get("target"),
                      c.get("kind"), c.get("label"), i),
                 )
-            # blocks the new diagram no longer contains cannot be traced to
             conn.execute(
                 "DELETE FROM traces WHERE block_id NOT IN "
                 "(SELECT id FROM diagram_blocks)"
@@ -335,7 +322,6 @@ def add_traces(traces: List[dict]) -> List[dict]:
         _ensure_db()
         with _connect() as conn:
             for t in traces:
-                # the unique index makes re-adding the same link a no-op
                 conn.execute(
                     "INSERT OR IGNORE INTO traces "
                     "(id, requirement_id, block_id, kind, rationale) VALUES (?,?,?,?,?)",
@@ -440,14 +426,9 @@ def get_eval_log() -> List[dict]:
     records = []
     for r in rows:
         record = {c: r[c] for c in EVAL_COLUMNS}
-        # records written before a column existed read back as NULL, and
-        # callers sum these -- dict.get with a default does not help, the key
-        # is present and the value is None
         for c in NUMERIC_EVAL_COLUMNS:
             if record[c] is None:
                 record[c] = 0
-        # records predating the provider column are all local runs, since
-        # the hosted provider did not exist when they were written
         if record["provider"] is None:
             record["provider"] = "ollama"
         record["cost_estimate_usd"] = json.loads(r["cost_estimate_usd"] or "{}")
@@ -466,9 +447,6 @@ def add_eval_record(record: dict) -> dict:
                  json.dumps(record.get("cost_estimate_usd", {}))),
             )
     return record
-
-
-# --- knowledge base ----------------------------------------------------------
 
 
 def _document_row(row: sqlite3.Row) -> dict:
@@ -543,8 +521,6 @@ def document_name_exists(name: str) -> bool:
 
 
 def replace_chunks(source_kind: str, source_id: str, chunks: List[dict]) -> int:
-    """Swap in the chunks for one source. Called on every write to that
-    source, so the index never lags the thing it indexes."""
     with _lock:
         _ensure_db()
         with _connect() as conn:

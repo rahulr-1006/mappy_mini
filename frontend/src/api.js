@@ -12,7 +12,6 @@ async function request(path, options = {}) {
       const body = await res.json()
       detail = body.detail ? JSON.stringify(body.detail) : detail
     } catch {
-      // response wasn't JSON, fall back to statusText
     }
     throw new Error(`${res.status} ${detail}`)
   }
@@ -103,7 +102,6 @@ export const api = {
         const body = await res.json()
         detail = body.detail ? JSON.stringify(body.detail) : detail
       } catch {
-        // not JSON
       }
       throw new Error(`${res.status} ${detail}`)
     }

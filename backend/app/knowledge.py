@@ -1,8 +1,4 @@
-"""Wires the chunking and scoring in `rag` to the database in `storage`.
-
-Kept separate so `rag` stays pure and testable without a database, and so
-there is one place that decides when the index gets rewritten.
-"""
+"""Connects rag.py to the database. Decides when the index gets rebuilt."""
 
 from __future__ import annotations
 
@@ -16,9 +12,6 @@ MODEL_SOURCE_ID = "current"
 
 
 async def _embedded_rows(texts: Sequence[str], source_name: str) -> tuple[List[dict], bool]:
-    """Build chunk rows, embedding the batch if the model is reachable. The
-    flag says whether embeddings actually happened, so the caller can log
-    what is true rather than what was intended."""
     rows = [
         {"id": str(uuid.uuid4()), "source_name": source_name, "text": t, "embedding": None}
         for t in texts
@@ -42,9 +35,6 @@ async def index_document(doc_id: str, name: str, content: str) -> dict:
 
 
 async def reindex_model() -> dict:
-    """Re-chunk the MBSE model as it now stands. Cheap enough to run on
-    every write: a model of this size is tens of chunks, and an index that
-    silently lags the model is worse than no index at all."""
     elements = storage.list_model_elements()
     diagram = storage.get_diagram()
     blocks = diagram.get("blocks", [])
@@ -81,8 +71,6 @@ async def retrieve(
     top_k: int = rag.DEFAULT_TOP_K,
     source_kind: Optional[str] = None,
 ) -> tuple[List[Chunk], str]:
-    """Returns the chunks worth putting in a prompt, and the method that
-    found them ("embedding", "lexical", or "empty")."""
     if not query.strip():
         return [], "empty"
     candidates = storage.list_chunks(source_kind)
@@ -90,8 +78,6 @@ async def retrieve(
 
 
 def describe(chunks: Sequence[Chunk], method: str) -> str:
-    """One activity-log line describing what retrieval actually did, named
-    down to the sources, so a reader can check the claim."""
     if not chunks:
         return f"Retrieved no relevant context ({method})."
     docs = sum(1 for c in chunks if c.source_kind == "document")

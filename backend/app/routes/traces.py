@@ -1,3 +1,5 @@
+"""Trace links between requirements and blocks, and coverage."""
+
 import json
 import uuid
 from typing import List
@@ -80,8 +82,6 @@ async def delete_trace(trace_id: str):
 
 @router.post("/suggest")
 async def suggest_traces(payload: SuggestRequest):
-    """Propose links for a human to confirm. Nothing is persisted here --
-    the engineer accepts or rejects each one."""
     log: List[str] = []
     requirements, blocks = _current_sets()
     acc = MetricsAccumulator(task="traces", model=payload.model, source="live")
@@ -143,8 +143,6 @@ async def suggest_traces(payload: SuggestRequest):
             "kind": item.get("kind", "satisfy"),
             "rationale": item.get("rationale", ""),
         }
-        # a hallucinated id is the expected failure here, so drop rather than
-        # surface links that point at nothing
         if rules.validate_trace(link, req_ids, block_ids):
             dropped += 1
             continue

@@ -5,7 +5,7 @@ export function ModelElementsPanel({ elements, onDelete, deletingId }) {
 
       {elements.length === 0 ? (
         <p className="empty-state">
-          Nothing committed to the model yet — keep a generated requirement to
+          Nothing committed to the model yet. Keep a generated requirement to
           add it here.
         </p>
       ) : (

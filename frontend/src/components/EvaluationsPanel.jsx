@@ -36,7 +36,7 @@ export function EvaluationsPanel({
 
         {summary?.generations === 0 ? (
           <p className="empty-state">
-            No generations recorded yet — generate requirements or a diagram,
+            No generations recorded yet. Generate requirements or a diagram,
             or run the evaluation suite below.
           </p>
         ) : (
@@ -75,7 +75,7 @@ export function EvaluationsPanel({
         <div className="panel">
           <h2>Local vs hosted</h2>
           <p className="empty-state">
-            Same prompts, same rule checks, same metrics — run against local
+            Same prompts, same rule checks, same metrics, run against local
             Ollama and the hosted Anthropic API.
           </p>
           <div className="table-scroll">
@@ -135,7 +135,7 @@ export function EvaluationsPanel({
           </button>
         </div>
         <p className="empty-state">
-          The rule engine is lexical — it checks how a requirement is written,
+          The rule engine is lexical. It checks how a requirement is written,
           not what it says. A second model scores the same requirements on
           criteria a regex cannot reach, so the gap between the two is
           measurable rather than assumed.
@@ -251,7 +251,7 @@ export function EvaluationsPanel({
           </>
         ) : (
           <p className="empty-state">
-            Not run yet. Makes one real generation per model — a few seconds
+            Not run yet. Makes one real generation per model, a few seconds
             on a hosted model, up to a minute locally.
           </p>
         )}

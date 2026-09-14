@@ -1,3 +1,5 @@
+"""The knowledge base: upload, seed, search, and reindex."""
+
 import os
 import uuid
 from typing import List
@@ -10,8 +12,6 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 SEED_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "seed_docs")
 
-# Uploads are read into memory and chunked, so the ceiling is about keeping
-# a stray binary from becoming a 50MB row rather than about disk.
 MAX_UPLOAD_BYTES = 2_000_000
 
 
@@ -19,8 +19,6 @@ def _decode(raw: bytes, name: str) -> str:
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
-        # a PDF or a Word file lands here; say so plainly rather than
-        # indexing mojibake that will surface as nonsense in retrieval
         raise HTTPException(
             status_code=415,
             detail=(
@@ -70,8 +68,6 @@ async def _ingest(name: str, content: str, origin: str) -> dict:
 
 @router.post("/seed")
 async def seed_documents():
-    """Load the bundled reference corpus. Idempotent by name, so pressing it
-    twice does not give you the corpus twice."""
     added: List[dict] = []
     if not os.path.isdir(SEED_DIR):
         raise HTTPException(status_code=500, detail="Seed corpus is missing from the install.")
@@ -98,8 +94,6 @@ async def seed_documents():
 
 @router.post("/reindex")
 async def reindex():
-    """Re-chunk and re-embed everything. Use after pulling the embedding
-    model, to upgrade an index built while it was unavailable."""
     docs = storage.list_documents(include_content=True)
     total = 0
     embedded_all = True
@@ -119,8 +113,6 @@ async def reindex():
 
 @router.post("/search")
 async def search(payload: dict):
-    """Exposed so the retrieval step can be shown on its own, rather than
-    only ever being visible as its effect on a generation."""
     query = str(payload.get("query", ""))
     chunks, method = await knowledge.retrieve(query, top_k=int(payload.get("top_k", 6)))
     return {

@@ -1,9 +1,10 @@
+"""Tests for persistence."""
+
 import pytest
 
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    """A fresh database per test."""
     from app import config, storage
 
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
@@ -20,13 +21,10 @@ def test_model_elements_round_trip(store):
     elements = store.list_model_elements()
 
     assert len(elements) == 1
-    # verify_method is stored snake_case but the API speaks camelCase
     assert elements[0]["verifyMethod"] == "Test"
 
 
 def test_deleting_a_requirement_removes_its_traces(store):
-    """A trace pointing at a deleted requirement would show up in coverage
-    as a link to nothing."""
     store.add_model_elements([{"id": "r1", "name": "n", "text": "t",
                                "stereotype": "s", "verifyMethod": "Test"}])
     store.save_diagram([{"id": "b1", "name": "B", "isRoot": False}], [])
@@ -72,8 +70,6 @@ def test_diagram_block_order_is_preserved(store):
 
 
 def test_eval_records_read_back_with_numbers_not_nulls(store):
-    """Records written before a column existed come back NULL, and callers
-    sum these -- a None here crashes the summary."""
     store.add_eval_record({"task": "requirements", "model": "m", "provider": "ollama",
                            "source": "live", "timestamp": "2026-01-01T00:00:00Z"})
 
@@ -98,8 +94,6 @@ def test_saved_diagram_remembers_its_prompt(store):
 
 
 def test_saving_without_a_prompt_keeps_the_previous_one(store):
-    """Re-saving an edited diagram should not wipe the prompt that can
-    regenerate it."""
     store.save_diagram([{"id": "b1", "name": "B", "isRoot": True}], [], "a ground station")
     store.save_diagram([{"id": "b2", "name": "C", "isRoot": True}], [])
 

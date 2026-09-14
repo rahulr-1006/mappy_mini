@@ -1,3 +1,5 @@
+"""Tests that the prompts carry the instructions they are supposed to."""
+
 from app.prompts import build_chat_prompt, build_diagram_prompt
 
 REQS = [
@@ -19,7 +21,6 @@ def test_diagram_prompt_with_requirements_carries_them_in():
 
     assert "REQUIREMENTS THE DESIGN MUST SATISFY" in user
     assert "steer within 0.1 degrees" in user
-    # the extra instruction only appears when there is something to satisfy
     assert "they define the scope of the design" in system
 
 
@@ -30,8 +31,6 @@ def test_empty_requirements_list_falls_back_to_description_only():
 
 
 def test_breadth_floor_only_applies_without_requirements():
-    """With requirements to bound it, the design should be scoped by them.
-    Without, ask for the breadth the domain would normally have."""
     bare, _ = build_diagram_prompt("a ground station")
     scoped, _ = build_diagram_prompt("a ground station", REQS)
 
@@ -53,8 +52,6 @@ def test_chat_prompt_carries_the_transcript():
 
 
 def test_chat_prompt_reports_failed_rule_checks_back_to_the_model():
-    """Without this the model cannot fix anything when asked, because it
-    never learns the checker rejected its last answer."""
     history = [
         {
             "role": "assistant",

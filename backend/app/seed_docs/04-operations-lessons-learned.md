@@ -1,4 +1,4 @@
-# Meridian Ground Segment — Operations Lessons Learned, Year One
+# Meridian Ground Segment: Operations Lessons Learned, Year One
 
 Document MER-OPS-031, Revision A. Fictional reference material for the
 Mini-MAPPy demonstration.

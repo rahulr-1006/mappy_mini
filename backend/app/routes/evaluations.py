@@ -1,3 +1,5 @@
+"""The evaluation log, the semantic review, and the golden prompt suite."""
+
 import json
 from typing import List
 
@@ -21,11 +23,6 @@ from .requirements import _generate_requirements
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 
-# The golden set: fixed prompts, re-runnable, so a prompt or model change
-# is compared on identical inputs. These are real generations run
-# sequentially, so the full suite takes several minutes on a local 8B
-# model -- an on-demand benchmark, not something to fire mid-session.
-
 REQUIREMENT_PROMPTS = [
     "an autonomous coffee maker that grinds beans on demand and shuts off if the pot is removed",
     "a drone delivery system that avoids obstacles and returns to base on low battery",
@@ -38,10 +35,6 @@ DIAGRAM_PROMPTS = [
     "a quadcopter drone with a flight controller, motors, battery, and camera gimbal",
 ]
 
-# One short prompt, run against each model in turn. Deliberately smaller
-# than the full suite: the point of a head-to-head is a controlled
-# comparison you can actually wait for, not a benchmark you start and come
-# back to.
 HEADTOHEAD_PROMPT = "a satellite ground station that tracks a single LEO spacecraft"
 
 
@@ -65,8 +58,6 @@ async def get_evaluations():
 
 @router.post("/judge")
 async def judge_requirements(payload: JudgeRequest):
-    """Score the kept requirements on criteria the lexical rules cannot see,
-    and report where the two signals disagree."""
     log: List[str] = []
     requirements = storage.list_model_elements()
     acc = MetricsAccumulator(task="judge", model=payload.model, source="live")
@@ -164,13 +155,6 @@ async def run_suite(payload: RunSuiteRequest):
 
 
 async def _run_head_to_head(models: List[str]) -> dict:
-    """Same prompt, same rulebook, several models, one table.
-
-    The provider comparison in the evaluation log is assembled from
-    whatever happens to be in it, which means it compares runs that were
-    never controlled against each other. This runs them back to back on one
-    prompt so the numbers are comparable by construction.
-    """
     rows = []
     for model in models:
         response = await _generate_requirements(
@@ -199,8 +183,6 @@ async def _run_head_to_head(models: List[str]) -> dict:
 
 
 async def _run_suite(model: str) -> None:
-    """Every golden prompt, one model. Results land in the evaluation log
-    tagged source="suite", which is what the caller reads back."""
     for prompt in REQUIREMENT_PROMPTS:
         await _generate_requirements(
             GenerateRequest(prompt=prompt, model=model, run_sanity_check=True),

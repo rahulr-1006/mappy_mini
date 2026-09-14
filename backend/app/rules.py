@@ -1,16 +1,6 @@
-"""The rulebook: everything that decides whether generated output is valid.
-
-Three layers, all lexical or structural and none of them an LLM call:
-
-  requirement rules  the INCOSE writing checks (MM-R01..R10) plus the
-                     batch-level near-duplicate detector
-  diagram rules      SysML structural and referential integrity
-  traceability       satisfy/refine/verify link validation and coverage
-
-Kept together because they are one concern -- what "valid" means here --
-and because a failure from any of them feeds the same repair loop. The
-semantic half of validation, which does need a model, lives in
-`evaluation.py`.
+"""Everything that decides whether generated output is valid: the INCOSE
+writing checks for requirements, structural validation for diagrams, and
+trace link validation with coverage analysis. No model calls here.
 """
 
 from __future__ import annotations
@@ -20,9 +10,6 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional
 
-# --------------------------------------------------------------------------
-# Requirement rules -- INCOSE writing checks
-# --------------------------------------------------------------------------
 
 WORD_COUNT_MIN = 40
 
@@ -46,21 +33,11 @@ ESCAPE_CLAUSES = [
 
 OPEN_ENDED_CLAUSES = ["including but not limited to", "and so on"]
 
-# VAL-8 extension: superfluous phrases beyond the assigned FR-7 subset.
 SUPERFLUOUS_PHRASES = ["be designed to", "be able to", "be capable of"]
 
-# VAL-9 extension: batch-level near-duplicate detection. Unlike the rules
-# above, this can't be checked one requirement at a time -- it needs the
-# whole generated batch to compare against.
 DUPLICATE_SIMILARITY_THRESHOLD = 0.85
 
 
-# Each check gets a stable identifier and the INCOSE quality characteristic
-# it serves. The identifiers are ours (MM-*), deliberately not INCOSE rule
-# numbers: the characteristics in INCOSE-TP-2010-006-04 are stable and
-# quotable, its rule numbering is not something to assert from memory in
-# front of someone who knows the standard. The mapping below is the honest
-# claim -- this check exists to serve that characteristic.
 RULE_CATALOG = {
     "word_count": ("MM-R01", "Complete", "carries enough detail to stand alone"),
     "contains_shall": ("MM-R02", "Conforming", "states an obligation, not a description"),
@@ -93,8 +70,6 @@ class RuleViolation:
         return RULE_CATALOG.get(self.rule, ("", "", ""))[2]
 
     def label(self) -> str:
-        """How a violation reads to an engineer: the identifier, the quality
-        characteristic it bears on, then what actually went wrong."""
         char = f" ({self.characteristic})" if self.characteristic else ""
         return f"{self.id}{char} {self.rule}: {self.detail}"
 
@@ -165,18 +140,6 @@ def check_superfluous_phrases(text: str) -> Optional[RuleViolation]:
     return None
 
 
-# VAL-10 extension, and the one check here that is not about wording.
-#
-# A requirement that fixes a human capability -- a lifting weight, a reach,
-# a reaction time, an acuity -- without saying where the figure came from
-# silently defines who is allowed to operate the system. That is a design
-# decision being made by default rather than on purpose, and it is the kind
-# of thing that surfaces late and expensively.
-#
-# The check does not object to the constraint. Plenty of them are real and
-# necessary. It objects to the constraint appearing with no anthropometric
-# standard, population percentile, or accessibility standard named beside
-# it. The fix is usually one clause, not a redesign.
 HUMAN_CAPABILITY_TERMS = [
     "lift", "lifting", "carry", "reach", "grip", "grasp", "kneel", "crouch",
     "stand for", "unaided", "unassisted", "by hand", "manually operate",
@@ -184,7 +147,6 @@ HUMAN_CAPABILITY_TERMS = [
     "color-coded", "able-bodied", "dexterity", "two-handed", "one-handed",
 ]
 
-# Naming any of these is what turns an arbitrary limit into a justified one.
 JUSTIFICATION_TERMS = [
     "percentile", "anthropometric", "mil-std-1472", "iso 9241", "en 614",
     "wcag", "section 508", "ada ", "accessibility standard", "human factors",
@@ -220,11 +182,6 @@ RULES = [
 ]
 
 
-# Deliberately not in RULES. These are judgement calls for a person, not
-# defects for the repair loop to fix: a model told to "fix" an exclusionary
-# constraint will delete it, and silently dropping an accessibility
-# consideration is worse than stating one badly. Advisories are reported
-# beside a requirement and never gate whether it counts as clean.
 ADVISORY_RULES = [
     check_exclusionary_assumptions,
 ]
@@ -240,9 +197,6 @@ def validate_requirement_text(text: str) -> List[RuleViolation]:
 
 
 def review_requirement_text(text: str) -> List[RuleViolation]:
-    """Advisories: things worth a human's attention that are not rule
-    failures. Separate from validate_requirement_text so nothing here
-    triggers a rewrite."""
     out = []
     for rule in ADVISORY_RULES:
         result = rule(text)
@@ -252,10 +206,6 @@ def review_requirement_text(text: str) -> List[RuleViolation]:
 
 
 def find_duplicates(requirements: List[dict]) -> Dict[int, RuleViolation]:
-    """VAL-9, batch-level: flag requirements whose text nearly repeats an
-    earlier one in the same generated batch. The per-requirement rules
-    above can't catch this since each requirement is checked in isolation.
-    """
     violations: Dict[int, RuleViolation] = {}
     for i in range(len(requirements)):
         for j in range(i):
@@ -272,10 +222,6 @@ def find_duplicates(requirements: List[dict]) -> Dict[int, RuleViolation]:
                 break
     return violations
 
-
-# --------------------------------------------------------------------------
-# Diagram rules -- SysML structural and referential integrity
-# --------------------------------------------------------------------------
 
 ALLOWED_CONNECTOR_KINDS = [
     "composition",
@@ -321,24 +267,8 @@ def validate_diagram(blocks: List[dict], connectors: List[dict]) -> List[str]:
     return violations
 
 
-# --------------------------------------------------------------------------
-# Traceability -- links between requirements and model elements
-# --------------------------------------------------------------------------
-#
-# The SysML relationships that matter for coverage analysis:
-#
-#   satisfy  a design element fulfils a requirement (the workhorse)
-#   refine   an element elaborates a requirement without fulfilling it
-#   verify   a test case demonstrates a requirement is met
-#
-# A requirement nothing satisfies is the classic systems-engineering defect
-# -- it was written, agreed, and then never allocated to anything that
-# builds it. Coverage analysis exists to surface exactly that.
-
 ALLOWED_TRACE_KINDS = ["satisfy", "refine", "verify"]
 
-# Only "satisfy" counts toward coverage: refining or verifying a requirement
-# does not mean anything in the design actually fulfils it.
 COVERAGE_KIND = "satisfy"
 
 
@@ -354,8 +284,6 @@ def validate_trace(trace: dict, requirement_ids: set, block_ids: set) -> List[st
 
 
 def compute_coverage(requirements: List[dict], blocks: List[dict], traces: List[dict]) -> dict:
-    """Which requirements are satisfied by something, and which design
-    elements exist without satisfying anything."""
     satisfied: Dict[str, List[str]] = {}
     for t in traces:
         if t.get("kind") == COVERAGE_KIND:

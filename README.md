@@ -205,7 +205,7 @@ than answers, and each one has a part I would want to work through with people
 who know the tool.
 
 **Malformed output.** Their promptfoo results report responses that "include
-text before table formatting" — the model wraps its array in prose and the
+text before table formatting". The model wraps its array in prose and the
 parser rejects the batch. This seemed worth separating from a rule violation,
 since the content can be fine while only the envelope is wrong. Two layers:
 Ollama runs with `format="json"`, and because the Messages API has no
@@ -277,8 +277,8 @@ benchmark.
 
 **What is not addressed.** Scope stops at requirements and blocks, since
 extending it touches the schema, the validator, and the UI together. Their
-roadmap items — relationship-gap detection, test case generation, automatic
-diagram assembly — are not built. Neither is anything on the integration side,
+roadmap items, relationship-gap detection, test case generation, and
+automatic diagram assembly, are not built. Neither is anything on the integration side,
 which is most of what makes MAPPy a tool rather than a pipeline.
 
 ---
@@ -392,8 +392,8 @@ database dependency, which is what makes chunking and scoring testable
 without one; `knowledge.py` is the only place that decides when the index is
 rewritten. Everything else is grouped by what it is for rather than split by
 how big it got: both LLM providers sit behind one dispatcher in `llm.py`,
-and every non-LLM validity check — requirement wording, diagram structure,
-trace links — is in `rules.py`, because they all feed the same repair loop.
+and every non-LLM validity check, requirement wording, diagram structure,
+and trace links, is in `rules.py`, because they all feed the same repair loop.
 
 ```bash
 cd backend && pytest app/tests -q    # 67 tests: rules, rag, prompts, recovery, review, storage

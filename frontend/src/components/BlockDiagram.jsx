@@ -19,9 +19,6 @@ const KIND_STYLES = {
   generalization: { stroke: '#0891b2' },
 }
 
-// Composition is the dominant edge (nearly every block has one from the
-// root) and its meaning is already conveyed by tree position, so labeling
-// it just adds visual noise -- only the more informative kinds get labels.
 const LABELED_KINDS = new Set(['aggregation', 'association', 'dependency', 'generalization'])
 
 const TIER_GAP = 70
@@ -92,8 +89,6 @@ function buildLayout(blocks, connectors) {
 
   sortedTiers.forEach((tier) => {
     const tierBlocks = byTier.get(tier)
-    // Wrap a wide tier into multiple rows instead of one row that keeps
-    // growing wider forever as a system gets more subsystems.
     const rows = []
     for (let i = 0; i < tierBlocks.length; i += MAX_PER_ROW) {
       rows.push(tierBlocks.slice(i, i + MAX_PER_ROW))
@@ -129,9 +124,6 @@ function buildLayout(blocks, connectors) {
       id: `edge-${i}`,
       source: connector.source,
       target: connector.target,
-      // Links between boxes on the same visual row arc below it
-      // (bottom-to-bottom) instead of cutting straight across through
-      // whatever sits in between; everything else routes top-to-bottom.
       sourceHandle: 's-bottom',
       targetHandle: sameRow ? 't-bottom' : 't-top',
       type: sameRow ? 'default' : 'smoothstep',
@@ -153,9 +145,6 @@ export function BlockDiagram({ blocks, connectors }) {
     return buildLayout(blocks, connectors)
   }, [blocks, connectors])
 
-  // React Flow only applies drag/selection changes back onto the nodes you
-  // hand it if you own that state via useNodesState + onNodesChange -- a
-  // plain `nodes={...}` prop with no change handler makes dragging a no-op.
   const [nodes, setNodes, onNodesChange] = useNodesState(layout.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(layout.edges)
 
@@ -167,7 +156,7 @@ export function BlockDiagram({ blocks, connectors }) {
   if (blocks.length === 0) {
     return (
       <p className="empty-state">
-        No diagram yet — describe a system and click Generate.
+        No diagram yet. Describe a system and click Generate.
       </p>
     )
   }

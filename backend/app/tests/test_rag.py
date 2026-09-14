@@ -1,3 +1,5 @@
+"""Tests for chunking and scoring."""
+
 import asyncio
 
 import pytest
@@ -16,9 +18,7 @@ def test_heading_aware_chunking_keeps_sections_separate():
     chunks = rag.chunk_document(doc)
 
     assert len(chunks) == 2
-    # each chunk carries the document title and its own heading, so a
-    # passage stays interpretable once it is out of context
-    assert all(c.startswith("Site Specification — ") for c in chunks)
+    assert all(c.startswith("Site Specification: ") for c in chunks)
     power = next(c for c in chunks if "20 minutes" in c)
     assert "18 and 27 degrees" not in power
 
@@ -61,8 +61,6 @@ def test_block_chunk_folds_in_its_interfaces():
     chunk = rag.chunk_block(blocks[1], connectors, blocks)
 
     assert "Power System" in chunk
-    # the edge is named from the block's own perspective, with the far end
-    # resolved to a name rather than an opaque id
     assert "Ground Station" in chunk
     assert "electrical power" in chunk
 
@@ -79,7 +77,6 @@ def test_cosine_handles_degenerate_input():
 
 
 def test_lexical_score_ignores_stopwords():
-    # "the" and "shall" carry no signal, so a match on them alone scores zero
     assert rag.lexical_score("the shall", "the system shall") == 0.0
     assert rag.lexical_score("antenna pointing", "antenna pointing accuracy") > 0.9
 
@@ -116,8 +113,6 @@ def test_format_context_labels_each_passage_with_its_source():
     out = rag.format_context(chunks)
 
     assert "[1] source: icd.md" in out
-    # model-sourced context is marked as such, so the model can tell a
-    # project document from something it wrote itself twenty minutes ago
     assert "[2] source: model:Antenna pointing" in out
 
 

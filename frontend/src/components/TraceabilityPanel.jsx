@@ -17,7 +17,6 @@ export function TraceabilityPanel({
   const orphans = coverage?.orphan_blocks ?? []
   const hasModel = rows.length > 0 && blocks.length > 0
 
-  // requirement id -> block id -> kind, for the matrix cells
   const cellKind = {}
   for (const t of traces) {
     cellKind[`${t.requirement_id}|${t.block_id}`] = t.kind
@@ -141,7 +140,7 @@ export function TraceabilityPanel({
                             <button
                               type="button"
                               className="cell-link"
-                              title={`${kind} — click to remove`}
+                              title={`${kind}, click to remove`}
                               onClick={() => onDeleteTrace(traceId[key])}
                             >
                               {kind === 'satisfy' ? '●' : '○'}

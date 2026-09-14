@@ -1,3 +1,5 @@
+"""Chat endpoints. Retrieves context, answers, and drafts requirements."""
+
 import json
 from typing import List
 
@@ -11,8 +13,6 @@ from ..prompts import build_chat_prompt, build_reprompt
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# enough context for the model to follow the thread without resending a
-# transcript that grows without bound
 HISTORY_TURNS = 12
 
 
@@ -44,9 +44,6 @@ def _violations(item: dict) -> List[str]:
 async def _repair(
     item: dict, violations: List[str], model: str, acc: MetricsAccumulator
 ) -> tuple[dict, List[str], int]:
-    """Send a failing draft back with the rules it broke, on a tighter budget
-    than the Requirements tab. Returns the best version reached, its remaining
-    violations, and how many repair attempts it cost."""
     reprompts = 0
     current = item
 
@@ -95,15 +92,9 @@ async def send_message(payload: ChatRequest):
 
     storage.add_chat_message("user", payload.message)
 
-    # the model will happily ask forever, so the decision to stop asking is
-    # made here rather than left to its judgement: one clarifying turn is
-    # allowed, after that it must produce
     already_asked = any(
         m["role"] == "assistant" and not m.get("requirements") for m in history
     )
-    # retrieve against the message plus the last thing the colleague said,
-    # so a short follow-up like "what about power?" still carries enough
-    # signal to find the right passage
     prior = next(
         (m["content"] for m in reversed(history) if m["role"] == "user"), ""
     )
@@ -136,8 +127,6 @@ async def send_message(payload: ChatRequest):
         if not isinstance(raw, list):
             raw = []
     except (json.JSONDecodeError, ValueError, AttributeError):
-        # a conversational turn is still useful even when the JSON envelope
-        # is malformed, so fall back to the raw text rather than erroring
         reply, raw = result.text.strip()[:1500], []
 
     requirements = []
@@ -149,13 +138,9 @@ async def send_message(payload: ChatRequest):
         violations = _violations(norm)
         if not violations:
             first_pass_count += 1
-        # chat drafts are held to the same rulebook as the Requirements tab,
-        # so a failing draft goes back to the model with the rule it broke
-        # rather than landing in the thread as a red card nothing repairs
         norm, violations, reprompts = await _repair(norm, violations, payload.model, acc)
         norm["violations"] = violations
         norm["reprompts"] = reprompts
-        # advisories are reported, never repaired -- see rules.ADVISORY_RULES
         norm["advisories"] = [a.label() for a in rules.review_requirement_text(norm["text"])]
         requirements.append(norm)
 

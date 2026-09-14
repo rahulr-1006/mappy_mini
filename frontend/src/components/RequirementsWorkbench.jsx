@@ -69,7 +69,7 @@ function RequirementEditor({ value, busy, onChange, onSave, onCancel, saveLabel 
           onChange={(e) => onChange({ ...value, text: e.target.value })}
         />
         <span className="field-hint">
-          {value.text.trim() ? value.text.trim().split(/\s+/).length : 0} words —
+          {value.text.trim() ? value.text.trim().split(/\s+/).length : 0} words,
           the checker needs 40 or more
         </span>
       </label>
@@ -127,7 +127,7 @@ export function RequirementsWorkbench({
         <div>
           <h2>Requirements ({elements.length})</h2>
           <p className="panel-subtitle">
-            Everything kept from the conversation. Edit any of them by hand —
+            Everything kept from the conversation. Edit any of them by hand,
             the rule check runs again on save.
           </p>
         </div>

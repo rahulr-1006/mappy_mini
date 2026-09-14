@@ -32,7 +32,7 @@ export function ChatPanel({ messages, busy, keepingKey, onSend, onKeep, onClear 
           <p className="empty-state">
             Describe a system. The assistant searches the knowledge base
             first, asks about whatever is still undetermined, and writes
-            requirements once it has enough to work from — rather than
+            requirements once it has enough to work from, rather than
             inventing them.
           </p>
         )}
