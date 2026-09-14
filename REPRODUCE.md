@@ -11,19 +11,12 @@
 | SQLite | 3.43.2 |
 | Measured | 12 to 13 September 2026 |
 
-Memory is the constraint worth naming. 16 GB is why the local model is
-`llama3.1:8b` and not something larger, and it bounds the local side of every
-comparison in the README.
+`llama3.1:8b` was used because the machine's 16 GB limitations
 
-Ollama model digests, so you can confirm you are running the same weights:
-
-```
-llama3.1:8b              46e0c10c039e    4.9 GB
-nomic-embed-text:latest  0a109f422b47    274 MB
-```
+Ollama model digests, so you can confirm you are running the same weights.
 
 ```bash
-ollama list    # compare the ID column against the digests above
+ollama list 
 ```
 
 Python and Node dependencies are pinned in `backend/requirements.txt` and
