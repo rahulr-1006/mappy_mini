@@ -40,7 +40,8 @@ An LLM asked for INCOSE-conformant requirements will produce plausible prose
 that quietly breaks the rules. This project treats that as the engineering
 problem rather than the finished product:
 
-1. **The rulebook is executable.** `rules.py` implements a series of checks:
+1. **The rulebook is executable.** `rules.py` implements a series of checks,
+   each carrying a stable id and the INCOSE quality characteristic it serves:
 - Minimum length check
 - Presence of the word "shall"
 - Vague terms check
@@ -68,6 +69,92 @@ Diagram generation also reads whatever requirements you have kept, so the design
 follows from them rather than being drafted alongside them. On a ground station
 example this took the proposed trace links from 5 to 10 and dropped the blocks
 satisfying no requirement from 7 to 1.
+
+---
+
+## Shortcomings in the source material, and what was done about them
+
+The MAPPy papers name specific weaknesses in their own evaluation. Those are
+the most useful thing in the source material, because they say where the
+work actually was. Each one below is quoted as a problem, then what this
+build does about it — including where the answer is "nothing".
+
+**Malformed output, distinct from bad content.** Their promptfoo results
+report responses that "include text before table formatting" — the model
+wrapped its array in prose and broke the parser. That is a different failure
+from an INCOSE rule violation and needs a different fix, because the content
+may be fine and only the envelope is wrong.
+
+Handled in two layers. *Prevention*: Ollama runs with `format="json"`, which
+is a hard guarantee, and the Anthropic path has no such switch so
+`_extract_json` strips a markdown fence and uses `raw_decode` to take the
+first complete value and discard trailing commentary. *Recovery*: when
+parsing still fails, `_parse_with_recovery` re-prompts for the envelope
+alone — "return only the JSON array, no explanation" — bounded at two
+attempts and counted in the log and the metrics. Previously one stray
+sentence of preamble discarded every requirement in the response.
+
+**Which rule broke, not just pass or fail.** Every violation carries a stable
+identifier, the INCOSE quality characteristic it serves, and the offending
+text: `MM-R05 (Unambiguous) pronouns: uses pronoun(s): this`. Shown on the
+card, in the activity log, and in the generation log, next to a `repaired ×N`
+badge.
+
+The identifiers are deliberately ours (`MM-*`) rather than INCOSE rule
+numbers. The eight quality characteristics in INCOSE-TP-2010-006-04 are
+stable and quotable; its rule numbering is not something worth asserting from
+memory in front of someone who knows the standard. `RULE_CATALOG` in
+`rules.py` maps each check to the characteristic it serves, which is the
+claim that can actually be defended.
+
+**Latency per call.** Captured on every `LLMResult`, stored per generation,
+and displayed per row and per provider in the Evaluations tab.
+
+**Harmful or biased content.** The 2023 deck lists this as a limitation of
+the underlying model that MAPPy has to work around, and the source material
+does not show it being addressed.
+
+The obvious implementation — a profanity or toxicity keyword list over
+satellite requirements — would be box-ticking. The version built here treats
+bias as the systems-engineering problem it actually is: a requirement that
+fixes a human capability (a lifting weight, a reach, an acuity, "unaided")
+without naming an anthropometric, ergonomic, or accessibility standard has
+silently decided who is allowed to operate the system. `MM-R10` flags that.
+
+Two design decisions matter more than the check itself:
+
+- It is an **advisory, not a rule failure**. It never gates whether a
+  requirement counts as clean.
+- It is **never sent to the repair loop**. A model told to fix an
+  exclusionary constraint will delete it, and silently dropping an
+  accessibility consideration is worse than stating one badly. The check
+  objects to the limit being unjustified, not to the limit existing — naming
+  a standard clears it. That is a judgement for a person, which is why
+  `ADVISORY_RULES` is kept separate from `RULES`.
+
+**A controlled model comparison.** Their QA slide shows pass rate and latency
+across models. The provider table here was assembled from whatever happened
+to be in the evaluation log, which compares runs that were never controlled
+against each other. **Head to head** now runs one prompt through every
+configured model back to back, so the numbers are comparable by construction.
+
+Measured on a satellite ground station prompt:
+
+| Model | Requirements | First pass | Valid after repair | Latency | Cost |
+|---|---|---|---|---|---|
+| claude-haiku-4-5 | 12 | 17% | 100% | 30.5s | $0.0195 |
+| llama3.1:8b | 1 | 0% | 100% | 16.4s | free |
+
+Read the first two columns together. Output volume differs by an order of
+magnitude and neither model wrote a conformant requirement on the first pass.
+What the repair loop buys is that both land in the same place.
+
+**Not addressed.** Their "Then vs Now" slide lists *limited to generation of
+requirements and blocks* as fixed. This build has the same limitation, and
+scoping to those two element types was deliberate — extending it touches the
+schema, the validator, and the UI together. Their roadmap items —
+relationship-gap detection, test case generation, automatic diagram assembly
+— are not built either, and are not claimed.
 
 ---
 
@@ -253,7 +340,7 @@ backend/app/
   rag.py              chunking, embedding, scoring -- no database dependency
   knowledge.py        wires rag.py to storage; owns when the index is rebuilt
   prompts.py          system instructions, retrieval guidance, repair prompts
-  rules.py            INCOSE rule engine (8 checks + duplicate detection)
+  rules.py            INCOSE rule engine (8 checks + duplicates + 1 advisory)
   diagram_rules.py    SysML structural/referential validation
   traceability.py     satisfy/refine/verify links + coverage analysis
   judge.py            semantic review scoring, cross-tabbed with the rules
@@ -274,7 +361,7 @@ scripts/
 ```
 
 ```bash
-cd backend && pytest app/tests -q    # 55 tests: rules, rag, traceability, judge
+cd backend && pytest app/tests -q    # 67 tests: rules, rag, format recovery, traceability, judge
 cd frontend && npx oxlint src/ && npx vite build
 ```
 

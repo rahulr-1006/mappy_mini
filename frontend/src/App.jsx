@@ -36,6 +36,8 @@ function App() {
   const [runningSuite, setRunningSuite] = useState(false)
   const [judgeResult, setJudgeResult] = useState(null)
   const [judging, setJudging] = useState(false)
+  const [headToHead, setHeadToHead] = useState(null)
+  const [headToHeadRunning, setHeadToHeadRunning] = useState(false)
 
   const [chatMessages, setChatMessages] = useState([])
   const [chatBusy, setChatBusy] = useState(false)
@@ -195,6 +197,21 @@ function App() {
       setError(err.message)
     } finally {
       setRunningSuite(false)
+    }
+  }
+
+  async function handleRunHeadToHead() {
+    setHeadToHeadRunning(true)
+    setError(null)
+    try {
+      // every model the backend offers, so the table is the full picture
+      // rather than whichever two were picked
+      setHeadToHead(await api.runHeadToHead(models))
+      await Promise.all([refreshEvaluations(), refreshLog()])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setHeadToHeadRunning(false)
     }
   }
 
@@ -484,6 +501,9 @@ function App() {
               judgeResult={judgeResult}
               judging={judging}
               onJudge={handleJudge}
+              headToHead={headToHead}
+              headToHeadRunning={headToHeadRunning}
+              onRunHeadToHead={handleRunHeadToHead}
             />
           )}
 

@@ -191,6 +191,9 @@ export function RequirementsWorkbench({
                     {el.violations?.length > 0 && (
                       <span className="badge badge-fail">breaks the rule check</span>
                     )}
+                    {el.advisories?.length > 0 && (
+                      <span className="badge badge-advisory">needs a human call</span>
+                    )}
                   </div>
                   <p className="requirement-name">{el.name}</p>
                   <p className="requirement-text">{el.text}</p>
@@ -198,6 +201,13 @@ export function RequirementsWorkbench({
                     <ul className="violation-list">
                       {el.violations.map((v, i) => (
                         <li key={i}>{v}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {el.advisories?.length > 0 && (
+                    <ul className="advisory-list">
+                      {el.advisories.map((a, i) => (
+                        <li key={i}>{a}</li>
                       ))}
                     </ul>
                   )}

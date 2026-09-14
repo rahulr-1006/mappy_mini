@@ -33,12 +33,16 @@ def _check(element: dict) -> List[str]:
     if element.get("verifyMethod") not in config.ALLOWED_VERIFY_METHODS:
         violations.append(f"invalid verifyMethod '{element.get('verifyMethod', '')}'")
     for v in rules.validate_requirement_text(element.get("text", "")):
-        violations.append(f"{v.rule}: {v.detail}")
+        violations.append(v.label())
     return violations
 
 
+def _advise(element: dict) -> List[str]:
+    return [a.label() for a in rules.review_requirement_text(element.get("text", ""))]
+
+
 def _with_violations(elements: List[dict]) -> List[dict]:
-    return [{**e, "violations": _check(e)} for e in elements]
+    return [{**e, "violations": _check(e), "advisories": _advise(e)} for e in elements]
 
 
 @router.get("")
@@ -69,12 +73,15 @@ async def update_element(element_id: str, payload: UpdateElementRequest):
         raise HTTPException(status_code=404, detail="No such model element.")
 
     violations = _check(updated)
+    advisories = _advise(updated)
     storage.log_event(
         f"Edited requirement {updated['name']!r} by hand: "
         + ("passes the rule check." if not violations else f"{len(violations)} rule(s) broken.")
     )
+    if advisories:
+        storage.log_event(f"Advisory on {updated['name']!r}: {advisories[0]}")
     await knowledge.reindex_model()
-    return {**updated, "violations": violations}
+    return {**updated, "violations": violations, "advisories": advisories}
 
 
 @router.delete("/{element_id}")

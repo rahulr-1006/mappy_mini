@@ -36,10 +36,48 @@ SUPERFLUOUS_PHRASES = ["be designed to", "be able to", "be capable of"]
 DUPLICATE_SIMILARITY_THRESHOLD = 0.85
 
 
+# Each check gets a stable identifier and the INCOSE quality characteristic
+# it serves. The identifiers are ours (MM-*), deliberately not INCOSE rule
+# numbers: the characteristics in INCOSE-TP-2010-006-04 are stable and
+# quotable, its rule numbering is not something to assert from memory in
+# front of someone who knows the standard. The mapping below is the honest
+# claim -- this check exists to serve that characteristic.
+RULE_CATALOG = {
+    "word_count": ("MM-R01", "Complete", "carries enough detail to stand alone"),
+    "contains_shall": ("MM-R02", "Conforming", "states an obligation, not a description"),
+    "vague_terms": ("MM-R03", "Unambiguous", "avoids terms with no verifiable meaning"),
+    "unachievable_absolutes": ("MM-R04", "Feasible", "avoids absolutes nothing can satisfy"),
+    "pronouns": ("MM-R05", "Unambiguous", "names its subject rather than referring back"),
+    "escape_clauses": ("MM-R06", "Verifiable", "avoids get-out clauses that void the obligation"),
+    "open_ended_clauses": ("MM-R07", "Complete", "avoids open-ended lists"),
+    "superfluous_phrases": ("MM-R08", "Concise", "avoids filler and negative obligations"),
+    "duplicate_requirement": ("MM-R09", "Unique", "does not restate another requirement"),
+    "exclusionary_assumption": ("MM-R10", "Necessary", "does not embed an unjustified human limit"),
+}
+
+
 @dataclass
 class RuleViolation:
     rule: str
     detail: str
+
+    @property
+    def id(self) -> str:
+        return RULE_CATALOG.get(self.rule, ("MM-R??", "", ""))[0]
+
+    @property
+    def characteristic(self) -> str:
+        return RULE_CATALOG.get(self.rule, ("", "", ""))[1]
+
+    @property
+    def intent(self) -> str:
+        return RULE_CATALOG.get(self.rule, ("", "", ""))[2]
+
+    def label(self) -> str:
+        """How a violation reads to an engineer: the identifier, the quality
+        characteristic it bears on, then what actually went wrong."""
+        char = f" ({self.characteristic})" if self.characteristic else ""
+        return f"{self.id}{char} {self.rule}: {self.detail}"
 
 
 def _whole_word_hits(terms: List[str], text_lower: str) -> List[str]:
@@ -108,6 +146,49 @@ def check_superfluous_phrases(text: str) -> Optional[RuleViolation]:
     return None
 
 
+# VAL-10 extension, and the one check here that is not about wording.
+#
+# A requirement that fixes a human capability -- a lifting weight, a reach,
+# a reaction time, an acuity -- without saying where the figure came from
+# silently defines who is allowed to operate the system. That is a design
+# decision being made by default rather than on purpose, and it is the kind
+# of thing that surfaces late and expensively.
+#
+# The check does not object to the constraint. Plenty of them are real and
+# necessary. It objects to the constraint appearing with no anthropometric
+# standard, population percentile, or accessibility standard named beside
+# it. The fix is usually one clause, not a redesign.
+HUMAN_CAPABILITY_TERMS = [
+    "lift", "lifting", "carry", "reach", "grip", "grasp", "kneel", "crouch",
+    "stand for", "unaided", "unassisted", "by hand", "manually operate",
+    "eyesight", "visual acuity", "hearing", "audible alarm", "colour-coded",
+    "color-coded", "able-bodied", "dexterity", "two-handed", "one-handed",
+]
+
+# Naming any of these is what turns an arbitrary limit into a justified one.
+JUSTIFICATION_TERMS = [
+    "percentile", "anthropometric", "mil-std-1472", "iso 9241", "en 614",
+    "wcag", "section 508", "ada ", "accessibility standard", "human factors",
+    "ergonomic standard", "per standard", "in accordance with",
+]
+
+
+def check_exclusionary_assumptions(text: str) -> Optional[RuleViolation]:
+    lowered = text.lower()
+    hits = _whole_word_hits(
+        [t for t in HUMAN_CAPABILITY_TERMS if " " not in t], lowered
+    ) + _substring_hits([t for t in HUMAN_CAPABILITY_TERMS if " " in t], lowered)
+    if not hits:
+        return None
+    if _substring_hits(JUSTIFICATION_TERMS, lowered):
+        return None
+    return RuleViolation(
+        "exclusionary_assumption",
+        f"constrains human capability ({', '.join(sorted(set(hits)))}) without naming "
+        f"an anthropometric, ergonomic, or accessibility standard to justify the limit",
+    )
+
+
 RULES = [
     check_word_count,
     check_contains_shall,
@@ -120,6 +201,16 @@ RULES = [
 ]
 
 
+# Deliberately not in RULES. These are judgement calls for a person, not
+# defects for the repair loop to fix: a model told to "fix" an exclusionary
+# constraint will delete it, and silently dropping an accessibility
+# consideration is worse than stating one badly. Advisories are reported
+# beside a requirement and never gate whether it counts as clean.
+ADVISORY_RULES = [
+    check_exclusionary_assumptions,
+]
+
+
 def validate_requirement_text(text: str) -> List[RuleViolation]:
     violations = []
     for rule in RULES:
@@ -127,6 +218,18 @@ def validate_requirement_text(text: str) -> List[RuleViolation]:
         if result is not None:
             violations.append(result)
     return violations
+
+
+def review_requirement_text(text: str) -> List[RuleViolation]:
+    """Advisories: things worth a human's attention that are not rule
+    failures. Separate from validate_requirement_text so nothing here
+    triggers a rewrite."""
+    out = []
+    for rule in ADVISORY_RULES:
+        result = rule(text)
+        if result is not None:
+            out.append(result)
+    return out
 
 
 def find_duplicates(requirements: List[dict]) -> Dict[int, RuleViolation]:

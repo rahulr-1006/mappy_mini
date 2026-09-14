@@ -1,5 +1,6 @@
 import pytest
 
+from app import rules
 from app.rules import (
     check_contains_shall,
     check_escape_clauses,
@@ -140,3 +141,59 @@ def test_a_clean_requirement_has_no_violations():
     )
 
     assert req.violations == []
+
+
+class TestRuleIdentifiers:
+    def test_every_check_has_an_id_and_a_characteristic(self):
+        # a violation with no catalogue entry would render as "MM-R??",
+        # which is the kind of thing that ships unnoticed
+        for name in rules.RULE_CATALOG:
+            rule_id, characteristic, intent = rules.RULE_CATALOG[name]
+            assert rule_id.startswith("MM-R")
+            assert characteristic
+            assert intent
+
+    def test_label_reads_id_characteristic_then_what_went_wrong(self):
+        violation = rules.RuleViolation("pronouns", "uses pronoun(s): it")
+        assert violation.label() == "MM-R05 (Unambiguous) pronouns: uses pronoun(s): it"
+
+    def test_unknown_rule_degrades_rather_than_raising(self):
+        violation = rules.RuleViolation("invented_rule", "something")
+        assert violation.id == "MM-R??"
+        assert "invented_rule" in violation.label()
+
+
+class TestExclusionaryAssumptions:
+    UNJUSTIFIED = (
+        "The operator shall lift the antenna feed assembly unaided during "
+        "scheduled maintenance and complete the replacement within thirty minutes."
+    )
+    JUSTIFIED = (
+        "The operator shall lift the antenna feed assembly, with mass limited to "
+        "the 5th percentile female lifting capability per MIL-STD-1472, during "
+        "scheduled maintenance within thirty minutes."
+    )
+    UNRELATED = (
+        "The ground station shall downlink payload data at a minimum rate of two "
+        "megabits per second during each scheduled contact window."
+    )
+
+    def test_flags_a_human_limit_with_no_justification(self):
+        advisories = rules.review_requirement_text(self.UNJUSTIFIED)
+        assert len(advisories) == 1
+        assert advisories[0].rule == "exclusionary_assumption"
+        assert "lift" in advisories[0].detail
+
+    def test_accepts_the_same_limit_once_a_standard_is_named(self):
+        # the check objects to the limit being arbitrary, not to the limit
+        assert rules.review_requirement_text(self.JUSTIFIED) == []
+
+    def test_ignores_requirements_that_constrain_no_one(self):
+        assert rules.review_requirement_text(self.UNRELATED) == []
+
+    def test_advisories_are_not_rule_failures(self):
+        # the repair loop runs off validate_requirement_text; an advisory
+        # appearing there would have a model rewrite the constraint away
+        failures = {v.rule for v in rules.validate_requirement_text(self.UNJUSTIFIED)}
+        assert "exclusionary_assumption" not in failures
+        assert rules.check_exclusionary_assumptions not in rules.RULES

@@ -140,6 +140,12 @@ export const api = {
       body: JSON.stringify({ model }),
     }),
 
+  runHeadToHead: (models) =>
+    request('/evaluations/head-to-head', {
+      method: 'POST',
+      body: JSON.stringify({ models }),
+    }),
+
   runEvaluationSuite: (model) =>
     request('/evaluations/run-suite', {
       method: 'POST',

@@ -2,7 +2,7 @@ import json
 from typing import List
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import config, eval_suite, rules, storage
 from ..evaluation import REFERENCE_RATES, MetricsAccumulator, summarize
@@ -99,6 +99,24 @@ async def judge_requirements(payload: JudgeRequest):
     )
     payload_out["log"] = log
     return payload_out
+
+
+class HeadToHeadRequest(BaseModel):
+    models: List[str] = Field(default_factory=list, max_length=4)
+
+
+@router.post("/head-to-head")
+async def head_to_head(payload: HeadToHeadRequest):
+    models = payload.models or [config.DEFAULT_MODEL]
+    storage.log_event(f"Head-to-head: running one prompt against {', '.join(models)}.")
+    result = await eval_suite.run_head_to_head(models)
+    for row in result["rows"]:
+        storage.log_event(
+            f"  {row['model']}: {row['items']} requirement(s), "
+            f"{row['success_rate']:.0%} valid, {row['duration_ms'] / 1000:.1f}s, "
+            f"${row['actual_cost_usd']:.4f}."
+        )
+    return result
 
 
 @router.post("/run-suite")

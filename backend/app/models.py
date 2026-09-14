@@ -19,6 +19,8 @@ class Requirement(BaseModel):
     reprompts: int = 0
     # rules still broken after the repair budget ran out; empty means clean
     violations: List[str] = []
+    # judgement calls for a person: reported, never auto-repaired
+    advisories: List[str] = []
 
 
 class GenerationMetrics(BaseModel):

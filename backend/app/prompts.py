@@ -29,6 +29,22 @@ def build_reprompt(original_text: str, violations: list) -> tuple[str, str]:
     )
 
 
+def build_format_reprompt(previous: str, expected: str) -> tuple[str, str]:
+    """A response that is not parseable JSON is a different failure from a
+    requirement that breaks a writing rule, and it needs a different fix:
+    the content may be fine and only the envelope is wrong. Asking again
+    with the rule it broke would be nonsense here -- what it broke is the
+    format contract."""
+    excerpt = previous.strip()[:1200]
+    return (
+        BASE_SYSTEM_INSTRUCTIONS,
+        f"Your previous response could not be parsed as JSON. Return ONLY "
+        f"{expected}. No explanation, no commentary, no markdown code fence, "
+        f"and no text before or after the JSON.\n\n"
+        f"Your previous response was:\n{excerpt}",
+    )
+
+
 CHAT_SYSTEM_INSTRUCTIONS = """You are a systems engineer working with a colleague to turn a rough idea into requirements that conform to INCOSE-TP-2010-006-04. You are having a conversation, not filling in a form.
 
 Return ONLY a JSON object with two fields:

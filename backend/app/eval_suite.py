@@ -22,6 +22,48 @@ DIAGRAM_PROMPTS = [
 ]
 
 
+# One short prompt, run against each model in turn. Deliberately smaller
+# than the full suite: the point of a head-to-head is a controlled
+# comparison you can actually wait for, not a benchmark you start and come
+# back to.
+HEADTOHEAD_PROMPT = "a satellite ground station that tracks a single LEO spacecraft"
+
+
+async def run_head_to_head(models: list[str]) -> dict:
+    """Same prompt, same rulebook, several models, one table.
+
+    The provider comparison elsewhere is assembled from whatever happens to
+    be in the evaluation log, which means it compares runs that were never
+    controlled against each other. This runs them back to back on one
+    prompt so the numbers are comparable by construction.
+    """
+    rows = []
+    for model in models:
+        response = await _generate_requirements(
+            GenerateRequest(prompt=HEADTOHEAD_PROMPT, model=model, run_sanity_check=True),
+            source="headtohead",
+        )
+        metrics = response.metrics
+        rows.append(
+            {
+                "model": model,
+                "provider": metrics.provider,
+                "items": metrics.items,
+                "first_pass_rate": metrics.first_pass_rate,
+                "success_rate": metrics.success_rate,
+                "duration_ms": metrics.duration_ms,
+                "llm_calls": metrics.llm_calls,
+                "total_tokens": metrics.total_tokens,
+                "actual_cost_usd": metrics.actual_cost_usd,
+                "rules_broken": sorted(
+                    {v.split(" ")[0] for r in response.requirements for v in r.violations}
+                ),
+            }
+        )
+
+    return {"prompt": HEADTOHEAD_PROMPT, "rows": rows}
+
+
 async def run_suite(model: str) -> dict:
     runs = []
 

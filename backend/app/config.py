@@ -33,5 +33,11 @@ MAX_REPROMPTS = 3
 # a person will sit through, and one budget means one story to tell.
 CHAT_MAX_REPROMPTS = MAX_REPROMPTS
 
+# A response that is not parseable JSON is a different failure from one that
+# breaks a writing rule: the content may be fine and only the envelope is
+# wrong. Retried separately, and kept low because a model that ignores the
+# format contract twice will usually ignore it a third time.
+MAX_FORMAT_RETRIES = 2
+
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 STATE_FILE = os.environ.get("STATE_FILE", os.path.join(DATA_DIR, "state.json"))

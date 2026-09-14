@@ -37,7 +37,7 @@ def _violations(item: dict) -> List[str]:
     if item["verifyMethod"] not in config.ALLOWED_VERIFY_METHODS:
         out.append(f"invalid verifyMethod '{item['verifyMethod']}'")
     for v in rules.validate_requirement_text(item["text"]):
-        out.append(f"{v.rule}: {v.detail}")
+        out.append(v.label())
     return out
 
 
@@ -155,6 +155,8 @@ async def send_message(payload: ChatRequest):
         norm, violations, reprompts = await _repair(norm, violations, payload.model, acc)
         norm["violations"] = violations
         norm["reprompts"] = reprompts
+        # advisories are reported, never repaired -- see rules.ADVISORY_RULES
+        norm["advisories"] = [a.label() for a in rules.review_requirement_text(norm["text"])]
         requirements.append(norm)
 
     if not reply:

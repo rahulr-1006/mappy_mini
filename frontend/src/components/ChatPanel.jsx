@@ -74,6 +74,9 @@ export function ChatPanel({ messages, busy, keepingKey, onSend, onKeep, onClear 
                             repaired ×{r.reprompts}
                           </span>
                         )}
+                        {r.advisories?.length > 0 && (
+                          <span className="badge badge-advisory">needs a human call</span>
+                        )}
                         {r.violations?.length > 0 && (
                           <span className="badge badge-fail">
                             {r.reprompts > 0
@@ -88,6 +91,13 @@ export function ChatPanel({ messages, busy, keepingKey, onSend, onKeep, onClear 
                         <ul className="violation-list">
                           {r.violations.map((v, j) => (
                             <li key={j}>{v}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {r.advisories?.length > 0 && (
+                        <ul className="advisory-list">
+                          {r.advisories.map((a, j) => (
+                            <li key={j}>{a}</li>
                           ))}
                         </ul>
                       )}

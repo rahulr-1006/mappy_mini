@@ -7,7 +7,7 @@ from .. import config, rules, storage
 from ..evaluation import MetricsAccumulator
 from ..models import GenerateRequest, GenerateResponse, Requirement
 from ..llm import LLMError, generate_json
-from ..prompts import build_generation_prompt, build_reprompt
+from ..prompts import build_format_reprompt, build_generation_prompt, build_reprompt
 
 router = APIRouter(prefix="/requirements", tags=["requirements"])
 
@@ -53,9 +53,48 @@ def _validate(item: dict, run_sanity_check: bool) -> List[str]:
 
     if run_sanity_check:
         for v in rules.validate_requirement_text(item["text"]):
-            violations.append(f"{v.rule}: {v.detail}")
+            violations.append(v.label())
 
     return violations
+
+
+async def _parse_with_recovery(text: str, model: str, acc: MetricsAccumulator, note):
+    """Parse the batch, and when the envelope is malformed rather than the
+    content, ask again for the envelope alone.
+
+    A response wrapped in prose or a code fence is a distinct failure from a
+    requirement that breaks a writing rule, and it used to cost the whole
+    batch: one stray sentence of preamble and every requirement in the
+    response was discarded. Returns (items, format_retries), or (None, n)
+    when even the retries came back unparseable.
+    """
+    attempt = 0
+    current = text
+
+    while True:
+        try:
+            return [_normalize(i) for i in _parse_requirement_array(current)], attempt
+        except (json.JSONDecodeError, ValueError) as exc:
+            if attempt >= config.MAX_FORMAT_RETRIES:
+                note(
+                    f"ERROR parsing LLM output as a JSON array after "
+                    f"{attempt} format retry(ies): {exc}"
+                )
+                return None, attempt
+            note(
+                f"Response was not a parseable JSON array ({exc}). "
+                f"Re-prompting for format only (attempt {attempt + 1})."
+            )
+
+        fix_system, fix_prompt = build_format_reprompt(current, "a JSON array of requirement objects")
+        try:
+            fixed = await generate_json(fix_prompt, model, fix_system)
+            acc.add(fixed)
+            current = fixed.text
+        except LLMError as exc:
+            note(f"ERROR during format retry: {exc}")
+            return None, attempt
+        attempt += 1
 
 
 def _finish(acc: MetricsAccumulator, items: int, first_pass: int, success: int) -> dict:
@@ -86,10 +125,10 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
         metrics = _finish(acc, items=0, first_pass=0, success=0)
         return GenerateResponse(requirements=[], log=log, metrics=metrics)
 
-    try:
-        raw_items = [_normalize(i) for i in _parse_requirement_array(initial.text)]
-    except (json.JSONDecodeError, ValueError) as exc:
-        note(f"ERROR parsing LLM output as a JSON array: {exc}")
+    raw_items, format_retries = await _parse_with_recovery(
+        initial.text, payload.model, acc, note
+    )
+    if raw_items is None:
         metrics = _finish(acc, items=0, first_pass=0, success=0)
         return GenerateResponse(requirements=[], log=log, metrics=metrics)
 
@@ -140,6 +179,7 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
                 verifyMethod=current["verifyMethod"],
                 reprompts=reprompts,
                 violations=violations,
+                advisories=[a.label() for a in rules.review_requirement_text(current["text"])],
             )
         )
 
@@ -148,7 +188,14 @@ async def _generate_requirements(payload: GenerateRequest, source: str = "live")
         for idx, violation in dup_violations.items():
             note(f"Requirement '{results[idx].name}' flagged: {violation.detail}")
 
-    note(f"Generation complete: {len(results)} requirement(s) produced.")
+    note(
+        f"Generation complete: {len(results)} requirement(s) produced."
+        + (
+            f" Recovered from {format_retries} malformed response(s)."
+            if format_retries
+            else ""
+        )
+    )
 
     metrics = _finish(acc, items=len(results), first_pass=first_pass_count, success=success_count)
     return GenerateResponse(requirements=results, log=log, metrics=metrics)

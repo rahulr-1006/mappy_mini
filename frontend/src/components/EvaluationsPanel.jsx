@@ -22,6 +22,9 @@ export function EvaluationsPanel({
   judgeResult,
   judging,
   onJudge,
+  headToHead,
+  headToHeadRunning,
+  onRunHeadToHead,
 }) {
   const costs = summary?.estimated_hosted_cost_totals ?? {}
   const ordered = [...records].reverse()
@@ -183,6 +186,74 @@ export function EvaluationsPanel({
               ))}
             </ul>
           </>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="diagram-panel-heading">
+          <div>
+            <h2>Head to head</h2>
+            <p className="panel-subtitle">
+              One prompt, one rulebook, every model in turn. The provider
+              table above is assembled from whatever is in the log, which
+              compares runs that were never controlled against each other.
+              This runs them back to back so the numbers are comparable by
+              construction.
+            </p>
+          </div>
+          <button type="button" onClick={onRunHeadToHead} disabled={headToHeadRunning}>
+            {headToHeadRunning ? 'Running…' : 'Run head to head'}
+          </button>
+        </div>
+
+        {headToHead ? (
+          <>
+            <p className="status-line">
+              Prompt: <code>{headToHead.prompt}</code>
+            </p>
+            <div className="table-scroll">
+              <table className="eval-table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Requirements</th>
+                    <th>First pass</th>
+                    <th>Valid after repair</th>
+                    <th>Calls</th>
+                    <th>Latency</th>
+                    <th>Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {headToHead.rows.map((r) => (
+                    <tr key={r.model}>
+                      <td>
+                        <span className={`badge${r.provider === 'ollama' ? '' : ' badge-accent'}`}>
+                          {r.model}
+                        </span>
+                      </td>
+                      <td>{r.items}</td>
+                      <td>{PERCENT(r.first_pass_rate)}</td>
+                      <td>{PERCENT(r.success_rate)}</td>
+                      <td>{r.llm_calls}</td>
+                      <td>{SECONDS(r.duration_ms)}</td>
+                      <td>{r.actual_cost_usd ? `$${r.actual_cost_usd.toFixed(4)}` : 'free'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="panel-subtitle">
+              Read the first two columns together. Output volume and
+              first-pass conformance differ sharply between models; what the
+              repair loop buys is that both land in the same place.
+            </p>
+          </>
+        ) : (
+          <p className="empty-state">
+            Not run yet. Makes one real generation per model — a few seconds
+            on a hosted model, up to a minute locally.
+          </p>
         )}
       </div>
 
