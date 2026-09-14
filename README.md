@@ -167,7 +167,7 @@ carrying a stable id and the INCOSE quality characteristic it serves:
 | MM-R09 | near-duplicate (batch level) | Unique |
 | MM-R10 | unjustified human limit (advisory) | Necessary |
 
-The identifiers are deliberately ours rather than INCOSE rule numbers. The eight
+The identifiers are deliberately mine rather than INCOSE rule numbers. The eight
 quality characteristics in INCOSE-TP-2010-006-04 are stable and quotable, its
 rule numbering is not something worth asserting from memory in front of someone
 who knows the standard. `RULE_CATALOG` maps each check to the characteristic it
@@ -217,10 +217,10 @@ usually a formatting slip. Repairing the common cases locally before paying for
 a call would probably handle most of them, and I have not measured how often
 the retry is the thing that actually saves a batch.
 
-**Saying which rule broke, not just pass or fail.** Every violation carries a
-stable id, the INCOSE quality characteristic it serves, and the offending text,
-so a failure says what to change. That is also what makes the targeted retry
-possible, since the repair prompt can name the specific rules broken.
+**Saying which rule broke, not just pass or fail.** Alongside the id and the
+characteristic, a violation carries the offending text, so a failure says what
+to change rather than only that something is wrong. That is what the repair
+prompt is built from, and what the Requirements tab shows per row.
 
 *Future Implementation:* ten checks is a starting set, and the term lists inside
 them are my reading of the guidance rather than anything authoritative. A
