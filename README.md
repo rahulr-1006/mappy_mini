@@ -191,6 +191,7 @@ trace links from 5 to 10 and dropped the blocks satisfying no requirement
 from 7 to 1.
 
 ---
+
 ## Working from their papers
 
 MAPPy is a production tool. It has a full stack behind it, a real database, and
@@ -355,37 +356,33 @@ diagram of an unrelated system, it correctly proposed nothing.
 
 ## Layout
 
-Nine modules behind the routes, each one a single concern:
+Ten modules, each one a single concern:
 
 ```
 backend/app/
-  main.py            
-  config.py         
-  models.py      
-  llm.py             
-  prompts.py        
-  rules.py           
-                      
-  rag.py              
-  knowledge.py        
-  evaluation.py       
-  storage.py          
-  seed_docs/          
-  routes/             
-                      
-  tests/              
+  main.py
+  config.py
+  models.py
+  llm.py
+  prompts.py
+  rules.py
+  rag.py
+  knowledge.py
+  evaluation.py
+  storage.py
+  seed_docs/
+  routes/
+  tests/
 frontend/src/
-  api.js           
-  App.jsx             
-  components/       
-                     
-                
-  DiagramPage.jsx  
-demo_documents/ 
+  api.js
+  App.jsx
+  components/
+  DiagramPage.jsx
+demo_documents/
 scripts/
-  dev.sh          
-  reset.sh           
-  stop.sh            
+  dev.sh
+  reset.sh
+  stop.sh
 ```
 
 Two boundaries are load-bearing and worth the extra file. `rag.py` has no
