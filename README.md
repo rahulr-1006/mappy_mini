@@ -331,34 +331,33 @@ Nine modules behind the routes, each one a single concern:
 
 ```
 backend/app/
-  main.py             app wiring, plus /health, /models, /activity-log
-  config.py           models, thresholds, retry budgets, paths
-  models.py           request and response schemas
-  llm.py              provider router, shared result type, both providers
-  prompts.py          system instructions, retrieval guidance, repair prompts
-  rules.py            the rulebook: INCOSE writing checks (8 + duplicates +
-                      1 advisory), SysML diagram validation, trace links
-                      and coverage
-  rag.py              chunking, embedding, scoring, no database dependency
-  knowledge.py        wires rag.py to storage, owns when the index is rebuilt
-  evaluation.py       metrics, cost model, aggregation, semantic review
-  storage.py          SQLite persistence
-  seed_docs/          bundled reference corpus (fictional Meridian program)
-  routes/             requirements, diagram, chat, traces, documents,
-                      model-elements, evaluations (+ the golden prompt set)
-  tests/              rules, rag, prompts, format recovery, evaluation, storage
+  main.py            
+  config.py         
+  models.py      
+  llm.py             
+  prompts.py        
+  rules.py           
+                      
+  rag.py              
+  knowledge.py        
+  evaluation.py       
+  storage.py          
+  seed_docs/          
+  routes/             
+                      
+  tests/              
 frontend/src/
-  api.js              one wrapper per endpoint
-  App.jsx             tab shell and shared state
-  components/         ChatPanel, RequirementsWorkbench, KnowledgePanel,
-                      BlockDiagram, EvaluationsPanel, TraceabilityPanel,
-                      ModelElementsPanel, ActivityLog
-  DiagramPage.jsx     standalone full-size diagram route
-demo_documents/       a document to upload during a demo
+  api.js           
+  App.jsx             
+  components/       
+                     
+                
+  DiagramPage.jsx  
+demo_documents/ 
 scripts/
-  dev.sh              setup + start both servers, wait until each answers
-  reset.sh            clear a demo run
-  stop.sh             stop both servers
+  dev.sh          
+  reset.sh           
+  stop.sh            
 ```
 
 Two boundaries are load-bearing and worth the extra file. `rag.py` has no
