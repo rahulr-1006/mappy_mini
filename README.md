@@ -144,15 +144,23 @@ place that decides when the index is rewritten.
 
 ---
 
-## Why this is more than one LLM call
+## What I built
+
+MAPPy is a production tool. It has a full stack behind it, a real database, and
+an API into the MagicDraw tooling where MBSE work actually happens. None of
+that is here. This is a weekend build of one slice, the generation pipeline,
+and it stops well before the integration work starts.
 
 An LLM asked for INCOSE-conformant requirements will produce plausible prose
-that quietly breaks the rules. This project treats that as the engineering
-problem rather than the finished product.
+that quietly breaks the rules, which is why the pipeline is more than a single
+call. Working from the published papers, four things seemed worth building
+properly rather than gesturing at. Each is a starting point, and each has a
+part I would want to work through with people who know the tool.
 
-**The rulebook is executable.** `rules.py` implements eight requirement
-checks, plus a batch-level near-duplicate detector and one advisory, each
-carrying a stable id and the INCOSE quality characteristic it serves:
+**An executable rulebook, and a repair loop driven by it.** `rules.py`
+implements eight requirement checks, plus a batch-level near-duplicate detector
+and one advisory, each carrying a stable id and the INCOSE quality
+characteristic it serves:
 
 | id | check | characteristic |
 |---|---|---|
@@ -167,41 +175,33 @@ carrying a stable id and the INCOSE quality characteristic it serves:
 | MM-R09 | near-duplicate (batch level) | Unique |
 | MM-R10 | unjustified human limit (advisory) | Necessary |
 
-The identifiers are deliberately mine rather than INCOSE rule numbers. The eight
-quality characteristics in INCOSE-TP-2010-006-04 are stable and quotable, its
-rule numbering is not something worth asserting from memory in front of someone
-who knows the standard. `RULE_CATALOG` maps each check to the characteristic it
-serves, which is the claim that can actually be defended.
+The identifiers are deliberately mine rather than INCOSE rule numbers. The
+eight quality characteristics in INCOSE-TP-2010-006-04 are stable and quotable,
+its rule numbering is not something worth asserting from memory in front of
+someone who knows the standard. `RULE_CATALOG` maps each check to the
+characteristic it serves, which is the claim that can actually be defended.
 
-**Violations drive a targeted retry.** A failing requirement is re-prompted with
-*the specific rules it broke*, not a generic "try again", bounded at three
-attempts so worst-case cost stays bounded.
-
-**The loop's value is measured, not asserted.** On the benchmark suite, locally
-generated requirements pass all rules first try **50%** of the time and are
-valid after self-correction **93%** of the time. That 43-point lift is what the
-validation layer buys.
+A violation also carries the offending text, so a failure says what to change
+rather than only that something is wrong. That is what the repair prompt is
+built from, and what the Requirements tab shows per row: a failing requirement
+is re-prompted with *the specific rules it broke*, not a generic "try again",
+bounded at three attempts so worst-case cost stays bounded. On the benchmark
+suite, locally generated requirements pass all rules first try **50%** of the
+time and are valid after self-correction **93%** of the time. That 43-point
+lift is what the validation layer buys.
 
 Diagrams get the same treatment with different rules, in the same file.
 Validation there is referential integrity, and repair re-prompts the whole
-graph rather than one node. Diagram generation also reads whatever
-requirements you have kept, so the design follows from them rather than being
-drafted alongside them. On a ground station example this took the proposed
-trace links from 5 to 10 and dropped the blocks satisfying no requirement
-from 7 to 1.
+graph rather than one node. Diagram generation also reads whatever requirements
+you have kept, so the design follows from them rather than being drafted
+alongside them. On a ground station example this took the proposed trace links
+from 5 to 10 and dropped the blocks satisfying no requirement from 7 to 1.
 
----
-
-## What I built
-
-MAPPy is a production tool. It has a full stack behind it, a real database, and
-an API into the MagicDraw tooling where MBSE work actually happens. None of
-that is here. This is a weekend build of one slice, the generation pipeline,
-and it stops well before the integration work starts.
-
-Working from the published papers, four things seemed worth building properly
-rather than gesturing at. Each is a starting point, and each has a part I would
-want to work through with people who know the tool.
+*Future Implementation:* ten checks is a starting set, and the term lists inside
+them are my reading of the guidance rather than anything authoritative. A
+systems engineer would want to tune both, which is why they are plain data at
+the top of `rules.py`, but tuning them through a config rather than a code edit
+is the obvious next step.
 
 **Recovering a batch from malformed output.** A model that wraps its array in
 prose breaks the parser, and the whole batch goes with it. That seemed worth
@@ -216,17 +216,6 @@ at two attempts and counted in the metrics.
 usually a formatting slip. Repairing the common cases locally before paying for
 a call would probably handle most of them, and I have not measured how often
 the retry is the thing that actually saves a batch.
-
-**Saying which rule broke, not just pass or fail.** Alongside the id and the
-characteristic, a violation carries the offending text, so a failure says what
-to change rather than only that something is wrong. That is what the repair
-prompt is built from, and what the Requirements tab shows per row.
-
-*Future Implementation:* ten checks is a starting set, and the term lists inside
-them are my reading of the guidance rather than anything authoritative. A
-systems engineer would want to tune both, which is why they are plain data at
-the top of `rules.py`, but tuning them through a config rather than a code edit
-is the obvious next step.
 
 **Flagging requirements that quietly exclude people.** A requirement that fixes
 a human capability, a lifting weight or a reach or an acuity or "unaided",
