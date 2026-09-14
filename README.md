@@ -191,68 +191,95 @@ trace links from 5 to 10 and dropped the blocks satisfying no requirement
 from 7 to 1.
 
 ---
+## Working from their papers
 
-## Shortcomings in the source material, and what was done about them
+MAPPy is a production tool. It has a full stack behind it, a real database, and
+an API into the MagicDraw tooling where MBSE work actually happens. None of
+that is here. This is a weekend build of one slice, the generation pipeline,
+and it stops well before the integration work starts.
 
-The MAPPy papers name specific weaknesses in their own evaluation. Those are the
-most useful thing in the source material, because they say where the work
-actually was.
-
-| Named weakness | What this build does |
-|---|---|
-| Malformed output, distinct from bad content | Prevented and recovered, see below |
-| Which rule broke, not just pass or fail | Every violation carries a stable id, characteristic, and offending text |
-| Latency per call | Captured on every `LLMResult`, shown per row and per provider |
-| Harmful or biased content | Reframed as `MM-R10`, an advisory, see below |
-| Controlled model comparison | **Head to head** runs one prompt through every configured model back to back |
-| Limited to requirements and blocks | Not addressed, same limitation here |
+The published evaluation is what I had to work from. The papers are direct
+about where their own results were weak, which makes them a good place to try
+things. Four of those are prototyped below. They are starting points rather
+than answers, and each one has a part I would want to work through with people
+who know the tool.
 
 **Malformed output.** Their promptfoo results report responses that "include
-text before table formatting", meaning the model wrapped its array in prose and
-broke the parser. That is a different failure from a rule violation and needs a
-different fix, because the content may be fine and only the envelope is wrong.
-Handled in two layers. *Prevention:* Ollama runs with `format="json"`, which is
-a hard guarantee, and the Anthropic path has no such switch so `_extract_json`
-strips a markdown fence and uses `raw_decode` to take the first complete value
-and discard trailing commentary. *Recovery:* when parsing still fails,
-`_parse_with_recovery` re-prompts for the envelope alone, bounded at two
-attempts and counted in the metrics. Previously one stray sentence of preamble
-discarded every requirement in the response.
+text before table formatting" — the model wraps its array in prose and the
+parser rejects the batch. This seemed worth separating from a rule violation,
+since the content can be fine while only the envelope is wrong. Two layers:
+Ollama runs with `format="json"`, and because the Messages API has no
+equivalent switch, `_extract_json` strips a markdown fence and uses
+`raw_decode` to take the first complete value. When parsing still fails,
+`_parse_with_recovery` asks again for the envelope alone, bounded at two
+attempts and counted in the metrics.
+
+*Still open:* the recovery spends a whole extra call on what is usually a
+formatting slip. Repairing the common cases locally before paying for a call
+would probably handle most of them, and I have not measured how often the
+retry is the thing that actually saves a batch.
+
+**Which rule broke, rather than pass or fail.** Every violation carries a
+stable id, the INCOSE quality characteristic it serves, and the offending
+text, so a failure says what to change. That is also what makes the targeted
+retry possible, since the repair prompt can name the specific rules broken.
+
+*Still open:* ten checks is a starting set, and the term lists inside them are
+my reading of the guidance rather than anything authoritative. A systems
+engineer would want to tune both, which is why they are plain data at the top
+of `rules.py`, but tuning them through a config rather than a code edit is the
+obvious next step.
 
 **Harmful or biased content.** The 2023 deck lists this as a limitation of the
-underlying model that MAPPy has to work around, and the source material does not
-show it being addressed. A profanity or toxicity keyword list over satellite
-requirements would be box-ticking. The version built here treats bias as the
-systems-engineering problem it actually is: a requirement that fixes a human
-capability (a lifting weight, a reach, an acuity, "unaided") without naming an
-anthropometric, ergonomic, or accessibility standard has silently decided who is
-allowed to operate the system. `MM-R10` flags that, and two design decisions
-matter more than the check itself:
+underlying model, and I could not find it addressed in the material I had. A
+profanity or toxicity list over satellite requirements did not seem like it
+would catch anything real. What I tried instead reads bias as a
+systems-engineering concern: a requirement that fixes a human capability, a
+lifting weight or a reach or an acuity or "unaided", without naming an
+anthropometric, ergonomic, or accessibility standard has made a decision about
+who can operate the system without saying so. `MM-R10` flags that. Two choices
+around it matter more than the check:
 
-- It is an **advisory, not a rule failure**. It never gates whether a
+- It is an advisory rather than a rule failure, so it never gates whether a
   requirement counts as clean.
-- It is **never sent to the repair loop**. A model told to fix an exclusionary
-  constraint will delete it, and silently dropping an accessibility
-  consideration is worse than stating one badly. The check objects to the limit
-  being unjustified, not to the limit existing, so naming a standard clears it.
-  That is a judgement for a person, which is why `ADVISORY_RULES` is kept
+- It never goes to the repair loop. A model told to fix an exclusionary
+  constraint will usually delete it, and quietly dropping an accessibility
+  consideration is worse than stating one badly. The objection is to the limit
+  being unjustified, not to the limit existing, so naming a standard clears
+  it. That is a judgement for a person, which is why `ADVISORY_RULES` is kept
   separate from `RULES`.
 
-**Head to head**, measured on a satellite ground station prompt:
+*Still open:* this is my interpretation of a one-line limitation in a slide
+deck, and it may not be what they meant by it. The check is also a keyword
+heuristic underneath, so it will miss an exclusionary requirement phrased
+without the words it looks for. I would want to know whether the framing is
+even the right one before building on it.
+
+**Controlled model comparison.** The provider table elsewhere in this README is
+assembled from whatever happens to be in the evaluation log, which compares
+runs that were never controlled against each other. **Head to head** runs one
+prompt through each configured model back to back instead. Measured on a
+satellite ground station prompt:
 
 | Model | Requirements | First pass | Valid after repair | Latency | Cost |
 |---|---|---|---|---|---|
 | claude-haiku-4-5 | 12 | 17% | 100% | 30.5s | $0.0195 |
 | llama3.1:8b | 1 | 0% | 100% | 16.4s | free |
 
-Read the first two columns together. Output volume differs by an order of
-magnitude and neither model wrote a conformant requirement on the first pass.
-What the repair loop buys is that both land in the same place.
+Output volume differs by an order of magnitude and neither model wrote a
+conformant requirement on the first pass, but both end up in the same place
+after repair.
 
-Scoping to requirements and blocks was deliberate, since extending it touches
-the schema, the validator, and the UI together. Their roadmap items,
-relationship-gap detection, test case generation, and automatic diagram
-assembly, are not built either, and are not claimed.
+*Still open:* this is one prompt and one run per model. The inputs are
+controlled, but the numbers still move when you re-run it. Several prompts and
+several runs per cell would be needed before treating any of this as a
+benchmark.
+
+**What is not addressed.** Scope stops at requirements and blocks, since
+extending it touches the schema, the validator, and the UI together. Their
+roadmap items — relationship-gap detection, test case generation, automatic
+diagram assembly — are not built. Neither is anything on the integration side,
+which is most of what makes MAPPy a tool rather than a pipeline.
 
 ---
 
