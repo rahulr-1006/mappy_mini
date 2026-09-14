@@ -29,8 +29,6 @@ ALLOWED_VERIFY_METHODS = ["Analysis", "Demonstration", "Inspection", "Test"]
 
 MAX_REPROMPTS = 3
 
-CHAT_MAX_REPROMPTS = MAX_REPROMPTS
-
 MAX_FORMAT_RETRIES = 2
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")

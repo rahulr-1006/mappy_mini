@@ -1,6 +1,11 @@
 """One entry point for generation. Dispatches on the model id: claude-*
 goes to the Anthropic API, anything else goes to local Ollama. Both
 return the same LLMResult so the rest of the pipeline does not care.
+
+The Anthropic system prompt is marked cacheable, but at current prompt
+lengths it does not cache: the prefix is below the model's minimum, so
+cache_read_tokens and cache_write_tokens stay zero. It is left in because
+it starts working on its own if the instructions grow.
 """
 
 from __future__ import annotations

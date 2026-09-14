@@ -47,7 +47,7 @@ async def _repair(
     reprompts = 0
     current = item
 
-    while violations and reprompts < config.CHAT_MAX_REPROMPTS:
+    while violations and reprompts < config.MAX_REPROMPTS:
         storage.log_event(
             f"Chat requirement {current['name']!r} failed rules: "
             f"{', '.join(violations)}. Re-prompting (attempt {reprompts + 1})."

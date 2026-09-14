@@ -24,6 +24,8 @@ DEFAULT_TOP_K = 6
 
 MIN_SCORE = 0.30
 
+LEXICAL_MIN_SCORE = 0.12
+
 
 class EmbeddingUnavailable(Exception):
     pass
@@ -210,7 +212,7 @@ async def rank(
         method = "lexical"
         scored = [_chunk(row, lexical_score(query, row["text"])) for row in candidates]
 
-    floor = min_score if method == "embedding" else 0.12
+    floor = min_score if method == "embedding" else LEXICAL_MIN_SCORE
     scored.sort(key=lambda c: c.score, reverse=True)
     return [c for c in scored[:top_k] if c.score >= floor], method
 
