@@ -192,74 +192,69 @@ from 7 to 1.
 
 ---
 
-## Working from their papers
+## What I built
 
 MAPPy is a production tool. It has a full stack behind it, a real database, and
 an API into the MagicDraw tooling where MBSE work actually happens. None of
 that is here. This is a weekend build of one slice, the generation pipeline,
 and it stops well before the integration work starts.
 
-The published evaluation is what I had to work from. The papers are direct
-about where their own results were weak, which makes them a good place to try
-things. Four of those are prototyped below. They are starting points rather
-than answers, and each one has a part I would want to work through with people
-who know the tool.
+Working from the published papers, four things seemed worth building properly
+rather than gesturing at. Each is a starting point, and each has a part I would
+want to work through with people who know the tool.
 
-**Malformed output.** A model that wraps its array in prose breaks the parser,
-and the whole batch goes with it. This seemed worth separating from a rule
-violation, since the content can be fine while only the envelope is wrong. Two
-layers: Ollama runs with `format="json"`, and because the Messages API has no
-equivalent switch, `_extract_json` strips a markdown fence and uses
-`raw_decode` to take the first complete value. When parsing still fails,
-`_parse_with_recovery` asks again for the envelope alone, bounded at two
-attempts and counted in the metrics.
+**Recovering a batch from malformed output.** A model that wraps its array in
+prose breaks the parser, and the whole batch goes with it. That seemed worth
+separating from a rule violation, since the content can be fine while only the
+envelope is wrong. Two layers: Ollama runs with `format="json"`, and because
+the Messages API has no equivalent switch, `_extract_json` strips a markdown
+fence and uses `raw_decode` to take the first complete value. When parsing
+still fails, `_parse_with_recovery` asks again for the envelope alone, bounded
+at two attempts and counted in the metrics.
 
 *Future Implementation:* the recovery spends a whole extra call on what is
 usually a formatting slip. Repairing the common cases locally before paying for
 a call would probably handle most of them, and I have not measured how often
 the retry is the thing that actually saves a batch.
 
-**Which rule broke, rather than pass or fail.** Every violation carries a
-stable id, the INCOSE quality characteristic it serves, and the offending
-text, so a failure says what to change. That is also what makes the targeted
-retry possible, since the repair prompt can name the specific rules broken.
+**Saying which rule broke, not just pass or fail.** Every violation carries a
+stable id, the INCOSE quality characteristic it serves, and the offending text,
+so a failure says what to change. That is also what makes the targeted retry
+possible, since the repair prompt can name the specific rules broken.
 
-*Future Implementation:* ten checks is a starting set, and the term lists
-inside them are my reading of the guidance rather than anything authoritative.
-A systems engineer would want to tune both, which is why they are plain data at
+*Future Implementation:* ten checks is a starting set, and the term lists inside
+them are my reading of the guidance rather than anything authoritative. A
+systems engineer would want to tune both, which is why they are plain data at
 the top of `rules.py`, but tuning them through a config rather than a code edit
 is the obvious next step.
 
-**Harmful or biased content.** Their published material names this as a
-limitation of the underlying model, and I could not find it addressed there. A
-profanity or toxicity list over satellite requirements did not seem like it
-would catch anything real. What I tried instead reads bias as a
-systems-engineering concern: a requirement that fixes a human capability, a
-lifting weight or a reach or an acuity or "unaided", without naming an
-anthropometric, ergonomic, or accessibility standard has made a decision about
-who can operate the system without saying so. `MM-R10` flags that. Two choices
-around it matter more than the check:
+**Flagging requirements that quietly exclude people.** A requirement that fixes
+a human capability, a lifting weight or a reach or an acuity or "unaided",
+without naming an anthropometric, ergonomic, or accessibility standard has made
+a decision about who can operate the system without saying so. `MM-R10` flags
+that. A profanity or toxicity list would have been easier to write, but it
+would not catch anything real in a set of satellite requirements. Two choices
+around the check matter more than the check itself:
 
 - It is an advisory rather than a rule failure, so it never gates whether a
   requirement counts as clean.
 - It never goes to the repair loop. A model told to fix an exclusionary
   constraint will usually delete it, and quietly dropping an accessibility
   consideration is worse than stating one badly. The objection is to the limit
-  being unjustified, not to the limit existing, so naming a standard clears
-  it. That is a judgement for a person, which is why `ADVISORY_RULES` is kept
+  being unjustified, not to the limit existing, so naming a standard clears it.
+  That is a judgement for a person, which is why `ADVISORY_RULES` is kept
   separate from `RULES`.
 
-*Future Implementation:* this is my interpretation of a limitation they name in
-a single line, and it may not be what they meant by it. The check is also a
-keyword heuristic underneath, so it will miss an exclusionary requirement
-phrased without the words it looks for. I would want to know whether the
-framing is even the right one before building on it.
+*Future Implementation:* this is one reading of what an exclusionary
+requirement looks like, and it is a keyword heuristic underneath, so it will
+miss one phrased without the words it looks for. I would want to know whether
+the framing is even the right one before building further on it.
 
-**Controlled model comparison.** The provider table elsewhere in this README is
-assembled from whatever happens to be in the evaluation log, which compares
-runs that were never controlled against each other. **Head to head** runs one
-prompt through each configured model back to back instead. Measured on a
-satellite ground station prompt:
+**Comparing models under controlled conditions.** The provider table elsewhere
+in this README is assembled from whatever happens to be in the evaluation log,
+which compares runs that were never controlled against each other. **Head to
+head** runs one prompt through each configured model back to back instead.
+Measured on a satellite ground station prompt:
 
 | Model | Requirements | First pass | Valid after repair | Latency | Cost |
 |---|---|---|---|---|---|
@@ -275,12 +270,11 @@ are controlled, but the numbers still move when you re-run it. Several prompts
 and several runs per cell would be needed before treating any of this as a
 benchmark.
 
-**What is not addressed.** Scope stops at requirements and blocks, since
-extending it touches the schema, the validator, and the UI together. Their
-roadmap items, relationship-gap detection, test case generation, and
-automatic diagram assembly, are not built. Neither is anything on the
-integration side, which is most of what makes MAPPy a tool rather than a
-pipeline.
+**Where it stops.** Scope is requirements and blocks. Extending it touches the
+schema, the validator, and the UI together, so that was a deliberate place to
+stop. Relationship-gap detection, test case generation, and automatic diagram
+assembly are not built, and neither is anything on the integration side, which
+is most of what makes MAPPy a tool rather than a pipeline.
 
 ---
 
@@ -325,11 +319,11 @@ into one sentence, or states something no test could falsify. A second model
 scores the same requirements on criteria a regex cannot reach and the two
 signals are cross-tabulated.
 
-**What the evals caught.** Their first run exposed a silent failure that manual
-testing had missed. The requirements parser assumed a JSON array, but the model
-sometimes returns a single bare requirement object, and the whole generation was
-being discarded. Two of three requirements prompts were producing nothing. The
-fix was four lines, and the same suite verified it.
+**What the evals caught.** The first suite run exposed a silent failure that
+manual testing had missed. The requirements parser assumed a JSON array, but
+the model sometimes returns a single bare requirement object, and the whole
+generation was being discarded. Two of three requirements prompts were
+producing nothing. The fix was four lines, and the same suite verified it.
 
 ---
 

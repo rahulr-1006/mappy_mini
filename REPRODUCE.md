@@ -96,7 +96,7 @@ The Evaluations tab in the UI runs the same thing if you would rather click it.
 
 ## The head-to-head table
 
-Reproduces the two-row table under **Working from their papers**.
+Reproduces the two-row table under **What I built**.
 
 One prompt, "a satellite ground station that tracks a single LEO spacecraft",
 run through each model back to back so the rows are comparable by construction.
