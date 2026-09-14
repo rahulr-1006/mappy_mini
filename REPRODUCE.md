@@ -1,5 +1,13 @@
 # Reproducing the demo
 
+Every figure quoted in the [README](README.md) came from a real run on one
+machine. This file says which command produced which number, what the machine
+was, and which figures will not come back identical if you run them again.
+
+Read the last section before comparing your output to mine. Some of these
+numbers are stable and some are one draw from a distribution, and the
+difference matters.
+
 | | |
 |---|---|
 | Hardware | MacBook Pro (`MacBookPro18,3`), Apple silicon, arm64 |
@@ -11,8 +19,9 @@
 | SQLite | 3.43.2 |
 | Measured | 12 to 13 September 2026 |
 
-`llama3.1:8b` was used because the machine's 16 GB limitations
-
+Memory is the constraint worth naming. 16 GB is why the local model is
+`llama3.1:8b` and not something larger, and it bounds the local side of every
+comparison in the README.
 
 Python and Node dependencies are pinned in `backend/requirements.txt` and
 `frontend/package-lock.json`. `./scripts/dev.sh` installs both from those files
@@ -22,19 +31,27 @@ on first run, so a fresh clone resolves the same versions.
 
 ## Start from a clean slate
 
-We can clear the evaluation logs, in actual production it can track metrics and long term evaluation costs.
+**This step is not optional if you want the suite table to match.** The
+evaluation log is cumulative and the suite summary filters the whole stored log
+by `source = "suite"`, so running the suite twice without clearing averages
+both runs together and the second table will not match the first.
 
 ```bash
 ./scripts/reset.sh --everything    # drops the eval history too
 ./scripts/dev.sh
 ```
 
+`reset.sh` on its own keeps the evaluation history, which is what you want
+between demo takes and not what you want here. That the log is cumulative is
+the right behaviour in production, where it is what tracks metrics and spend
+over time; it is only the thing to clear when reproducing a single table.
+
 ---
 
 ## The golden suite table
 
-This reproduces the six-prompt table under **Evaluation**, and the 50% / 93% figures
-quoted in the README.
+This reproduces the six-prompt table under **Evaluation**, and the 50% / 93%
+figures quoted in the README.
 
 Six fixed prompts, three for requirements and three for diagrams, defined at
 the top of `backend/app/routes/evaluations.py`. They are hardcoded so a prompt
@@ -113,8 +130,8 @@ Covers the rule engine, retrieval chunking and scoring, malformed-output
 recovery, traceability coverage, and the semantic reviewer's scoring.
 
 The ten checks and the INCOSE characteristic each serves are in `RULE_CATALOG`
-at the top of `backend/app/rules.py`. The README table is generated from
-nothing, it is transcribed from that dict, so check it there if you want the
+at the top of `backend/app/rules.py`. The README table is not generated; it is
+transcribed from that dict by hand, so check there if you want the
 authoritative list.
 
 ---
