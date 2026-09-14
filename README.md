@@ -1,160 +1,89 @@
 # Mini-MAPPy
 
 **DEMO:** https://youtu.be/kb3O7bzeyWg
- 
-AI-assisted MBSE tooling based on MAPPy by Booz Allen Hamilton. Given a plain-text English prompt, it drafts
-requirements that conform to the INCOSE writing rules and a SysML block
-definition diagram, traces one to the other, and meters what the generation
-cost in tokens, seconds, and dollars. This transforms previously manual systems engineering processes into efficient and engineered models.
-Hope you enjoy the read and get a chance to test it out on your local machine!
 
-Conversation is the way in. You describe a system in chat; it retrieves from
-the project knowledge base first, asks about whatever the documents do not
-settle, and drafts requirements grounded in what the documents actually say.
-Those requirements are the working set — editable by hand — and the block
-diagram is generated from them with no second prompt. Committing anything to
-the model re-indexes it, so what the tool generates becomes what the tool
-retrieves.
+AI-assisted MBSE tooling, based on MAPPy by Booz Allen Hamilton.
 
-Five things happen to every generated artifact:
-
-1. **Retrieval** over two sources — system documents you load, and the MBSE
-   model being built — so generation starts from project fact rather than from
-   the sentence it was handed.
-2. **Lexical validation** against the INCOSE writing rules, with failures
-   driving a targeted rewrite rather than a rejection.
-3. **Semantic review** by a second model, scoring what a regex cannot see, such as
-   whether a requirement is singular, verifiable, and implementation-free.
-4. **Traceability** linking requirements to the design elements that satisfy
-   them, which makes coverage gaps computable.
-5. **Metering** of tokens, latency, conformance, and cost on every call.
+You describe a system in chat. The tool retrieves from a project knowledge base,
+asks about whatever the documents do not settle, and drafts requirements that
+conform to the INCOSE writing rules. Those requirements are the working set and
+you edit them by hand. The SysML block diagram is then generated from them, with
+no second prompt. It traces one to the other and meters what every call cost in
+tokens, seconds, and dollars.
 
 Runs against a local model through [Ollama](https://ollama.com) by default, or
 against the hosted Anthropic API using the same pipeline.
 
 ---
 
-## Going Beyond a Simple LLM Call
+## Quickstart
 
-An LLM asked for INCOSE-conformant requirements will produce plausible prose
-that quietly breaks the rules. This project treats that as the engineering
-problem rather than the finished product:
+Requires Python 3.12+, Node 18+, and [Ollama](https://ollama.com).
 
-1. **The rulebook is executable.** `rules.py` implements a series of checks,
-   each carrying a stable id and the INCOSE quality characteristic it serves:
-- Minimum length check
-- Presence of the word "shall"
-- Vague terms check
-- Unachievable absolutes check
-- Bare pronouns check
-- Escape clauses check
-- Open-ended clauses check
-- Superfluous phrases check
-- Batch-level near-duplicate detector
+```bash
+ollama pull llama3.1:8b        # ~4.9 GB, one time, generation
+ollama pull nomic-embed-text   # ~274 MB, one time, embeddings for retrieval
+./scripts/dev.sh
+```
 
-2. **Violations drive a targeted retry.** A failing requirement is re-prompted
-   with *the specific rules it broke*, not a generic "try again", bounded at
-   three attempts so worst-case cost stays bounded. This ensures that key issues
-   are addressed step by step without any hallucinations.
+`dev.sh` creates the virtualenv and installs both dependency sets on first run,
+frees the ports if something is already on them, starts the API and the dev
+server, waits until each actually answers, and opens the app.
 
-3. **The loop's value is measured, not asserted.** On the benchmark suite,
-   locally generated requirements pass all rules first try **50%** of the time
-   and are valid after self-correction **93%** of the time. That 43-point lift
-   is what the validation layer buys.
+- App: <http://localhost:5173>
+- Full-size diagram: <http://localhost:5173/diagram-view>
+- API docs: <http://localhost:8000/docs>
 
-Diagrams get the same treatment with different rules: validation there is
-referential integrity and repair re-prompts the whole graph rather than one node.
+```bash
+./scripts/dev.sh --no-open
+./scripts/reset.sh              # clear a demo run, keep the documents
+./scripts/stop.sh
+tail -f /tmp/mappy-backend.log
+```
 
-Diagram generation also reads whatever requirements you have kept, so the design
-follows from them rather than being drafted alongside them. On a ground station
-example this took the proposed trace links from 5 to 10 and dropped the blocks
-satisfying no requirement from 7 to 1.
+Ollama is needed even when generating with a hosted Claude model, because
+embeddings always run locally. Without it, retrieval falls back to keyword
+matching and the Knowledge tab says so.
+
+To use a hosted model, copy `backend/.env.example` to `backend/.env` and set
+`ANTHROPIC_API_KEY`. Claude models then appear in the model picker alongside the
+local ones.
+
+<details>
+<summary>Running the servers by hand</summary>
+
+```bash
+# terminal 1
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+
+# terminal 2, only after the API answers on :8000
+cd frontend
+npm install
+npm run dev
+```
+
+</details>
 
 ---
 
-## Shortcomings in the source material, and what was done about them
+## What happens to every generated artifact
 
-The MAPPy papers name specific weaknesses in their own evaluation. Those are
-the most useful thing in the source material, because they say where the
-work actually was. Each one below is quoted as a problem, then what this
-build does about it — including where the answer is "nothing".
+1. **Retrieval** over two sources, the system documents you load and the MBSE
+   model being built, so generation starts from project fact rather than from
+   the sentence it was handed.
+2. **Lexical validation** against the INCOSE writing rules, where failures drive
+   a targeted rewrite rather than a rejection.
+3. **Semantic review** by a second model, scoring what a regex cannot see, such
+   as whether a requirement is singular, verifiable, and implementation-free.
+4. **Traceability** linking requirements to the design elements that satisfy
+   them, which makes coverage gaps computable.
+5. **Metering** of tokens, latency, conformance, and cost on every call.
 
-**Malformed output, distinct from bad content.** Their promptfoo results
-report responses that "include text before table formatting" — the model
-wrapped its array in prose and broke the parser. That is a different failure
-from an INCOSE rule violation and needs a different fix, because the content
-may be fine and only the envelope is wrong.
-
-Handled in two layers. *Prevention*: Ollama runs with `format="json"`, which
-is a hard guarantee, and the Anthropic path has no such switch so
-`_extract_json` strips a markdown fence and uses `raw_decode` to take the
-first complete value and discard trailing commentary. *Recovery*: when
-parsing still fails, `_parse_with_recovery` re-prompts for the envelope
-alone — "return only the JSON array, no explanation" — bounded at two
-attempts and counted in the log and the metrics. Previously one stray
-sentence of preamble discarded every requirement in the response.
-
-**Which rule broke, not just pass or fail.** Every violation carries a stable
-identifier, the INCOSE quality characteristic it serves, and the offending
-text: `MM-R05 (Unambiguous) pronouns: uses pronoun(s): this`. Shown on the
-card, in the activity log, and in the generation log, next to a `repaired ×N`
-badge.
-
-The identifiers are deliberately ours (`MM-*`) rather than INCOSE rule
-numbers. The eight quality characteristics in INCOSE-TP-2010-006-04 are
-stable and quotable; its rule numbering is not something worth asserting from
-memory in front of someone who knows the standard. `RULE_CATALOG` in
-`rules.py` maps each check to the characteristic it serves, which is the
-claim that can actually be defended.
-
-**Latency per call.** Captured on every `LLMResult`, stored per generation,
-and displayed per row and per provider in the Evaluations tab.
-
-**Harmful or biased content.** The 2023 deck lists this as a limitation of
-the underlying model that MAPPy has to work around, and the source material
-does not show it being addressed.
-
-The obvious implementation — a profanity or toxicity keyword list over
-satellite requirements — would be box-ticking. The version built here treats
-bias as the systems-engineering problem it actually is: a requirement that
-fixes a human capability (a lifting weight, a reach, an acuity, "unaided")
-without naming an anthropometric, ergonomic, or accessibility standard has
-silently decided who is allowed to operate the system. `MM-R10` flags that.
-
-Two design decisions matter more than the check itself:
-
-- It is an **advisory, not a rule failure**. It never gates whether a
-  requirement counts as clean.
-- It is **never sent to the repair loop**. A model told to fix an
-  exclusionary constraint will delete it, and silently dropping an
-  accessibility consideration is worse than stating one badly. The check
-  objects to the limit being unjustified, not to the limit existing — naming
-  a standard clears it. That is a judgement for a person, which is why
-  `ADVISORY_RULES` is kept separate from `RULES`.
-
-**A controlled model comparison.** Their QA slide shows pass rate and latency
-across models. The provider table here was assembled from whatever happened
-to be in the evaluation log, which compares runs that were never controlled
-against each other. **Head to head** now runs one prompt through every
-configured model back to back, so the numbers are comparable by construction.
-
-Measured on a satellite ground station prompt:
-
-| Model | Requirements | First pass | Valid after repair | Latency | Cost |
-|---|---|---|---|---|---|
-| claude-haiku-4-5 | 12 | 17% | 100% | 30.5s | $0.0195 |
-| llama3.1:8b | 1 | 0% | 100% | 16.4s | free |
-
-Read the first two columns together. Output volume differs by an order of
-magnitude and neither model wrote a conformant requirement on the first pass.
-What the repair loop buys is that both land in the same place.
-
-**Not addressed.** Their "Then vs Now" slide lists *limited to generation of
-requirements and blocks* as fixed. This build has the same limitation, and
-scoping to those two element types was deliberate — extending it touches the
-schema, the validator, and the UI together. Their roadmap items —
-relationship-gap detection, test case generation, automatic diagram assembly
-— are not built either, and are not claimed.
+Committing anything to the model re-indexes it, so what the tool generates
+becomes what the tool retrieves.
 
 ---
 
@@ -170,12 +99,17 @@ relationship-gap detection, test case generation, automatic diagram assembly
                                └───────┬────────┘   └─────────────────┘
                                        ▼
                                data/mappy.db
-     (model elements, diagram, traces, documents, rag_chunks, activity + eval logs)
+     (model elements, diagram, traces, documents, rag_chunks, chat, activity + eval logs)
 ```
 
 `llm.py` dispatches on the model id and both providers return the same result
 shape, so the rule engine, repair loop, and metrics are provider-agnostic.
-`claude-*` goes to the Anthropic SDK; anything else goes to Ollama.
+`claude-*` goes to the Anthropic SDK, anything else goes to Ollama.
+
+`data/mappy.db` is runtime state, not source. It is gitignored and created on
+first run by `storage.py`, so a fresh clone has no database until the backend
+starts. Use `./scripts/reset.sh` to clear it rather than deleting the file,
+which would leave the running server pointing at a deleted inode.
 
 ### The retrieval loop
 
@@ -188,107 +122,150 @@ shape, so the rule engine, repair loop, and metrics are provider-agnostic.
 ```
 
 Two knowledge sources feed one index. `rag.py` holds the chunking and scoring
-with no database dependency; `knowledge.py` wires it to storage and is the one
+with no database dependency. `knowledge.py` wires it to storage and is the one
 place that decides when the index is rewritten.
 
 - **Chunking is heading-aware.** Engineering documents are sectioned because
-  each section is a separable concern, so a heading is a better boundary than
-  a word count. Every chunk carries its document title and its own heading —
-  without that, a chunk about a 20-minute holding time never says what is
-  being held up, and a search for "backup power" cannot find it.
+  each section is a separable concern, so a heading is a better boundary than a
+  word count. Every chunk carries its document title and its own heading.
+  Without that, a chunk about a 20-minute holding time never says what is being
+  held up, and a search for "backup power" cannot find it.
 - **Model elements are chunked for how they get searched.** A requirement
   carries its stereotype and verify method, because "which requirements are
-  verified by test" is a real query. A block carries the interfaces it sits
-  on, because a block name alone says almost nothing.
-- **Embeddings are local**: `nomic-embed-text` through Ollama, 768 dimensions,
+  verified by test" is a real query. A block carries the interfaces it sits on,
+  because a block name alone says almost nothing.
+- **Embeddings are local:** `nomic-embed-text` through Ollama, 768 dimensions,
   cosine similarity, top 6, floor at 0.30. Below that floor a chunk is noise,
-  and padding a prompt with noise is how a grounded answer becomes a
-  confidently wrong one.
-- **Lexical scoring is the fallback**, not the design. If Ollama is
-  unreachable the index still answers by term overlap and the UI says which
-  method ran, so a missing embedding model degrades retrieval instead of
-  breaking the app.
+  and padding a prompt with noise is how a grounded answer becomes a confidently
+  wrong one.
+- **Lexical scoring is the fallback,** not the design. If Ollama is unreachable
+  the index still answers by term overlap and the UI says which method ran, so a
+  missing embedding model degrades retrieval instead of breaking the app.
 
 ---
 
-## Quickstart
+## Why this is more than one LLM call
 
-Requires Python 3.12+, Node 18+, and [Ollama](https://ollama.com).
+An LLM asked for INCOSE-conformant requirements will produce plausible prose
+that quietly breaks the rules. This project treats that as the engineering
+problem rather than the finished product.
 
-```bash
-ollama pull llama3.1:8b        # ~4.9 GB, one time — generation
-ollama pull nomic-embed-text   # ~274 MB, one time — embeddings for retrieval
-./scripts/dev.sh
-```
+**The rulebook is executable.** `rules.py` implements eight checks, plus a
+batch-level near-duplicate detector and one advisory, each carrying a stable id
+and the INCOSE quality characteristic it serves:
 
-Ollama is needed even when generating with a hosted Claude model, because
-embeddings always run locally. Without it, retrieval falls back to keyword
-matching and the Knowledge tab says so.
+| id | check | characteristic |
+|---|---|---|
+| MM-R01 | minimum length | Complete |
+| MM-R02 | presence of "shall" | Conforming |
+| MM-R03 | vague terms | Unambiguous |
+| MM-R04 | unachievable absolutes | Feasible |
+| MM-R05 | bare pronouns | Unambiguous |
+| MM-R06 | escape clauses | Verifiable |
+| MM-R07 | open-ended clauses | Complete |
+| MM-R08 | superfluous phrases | Concise |
+| MM-R09 | near-duplicate (batch level) | Unique |
+| MM-R10 | unjustified human limit (advisory) | Necessary |
 
-The script creates the virtualenv and installs both dependency sets
-on first run, frees the ports if something is already on them, starts the API
-and the dev server, **waits until each actually answers**, and opens the app.
+The identifiers are deliberately ours rather than INCOSE rule numbers. The eight
+quality characteristics in INCOSE-TP-2010-006-04 are stable and quotable, its
+rule numbering is not something worth asserting from memory in front of someone
+who knows the standard. `RULE_CATALOG` maps each check to the characteristic it
+serves, which is the claim that can actually be defended.
 
-- App — <http://localhost:5173>
-- Full-size diagram — <http://localhost:5173/diagram-view>
-- API docs — <http://localhost:8000/docs>
+**Violations drive a targeted retry.** A failing requirement is re-prompted with
+*the specific rules it broke*, not a generic "try again", bounded at three
+attempts so worst-case cost stays bounded.
 
-```bash
-./scripts/dev.sh --no-open  
-./scripts/stop.sh          
-tail -f /tmp/mappy-backend.log
-```
+**The loop's value is measured, not asserted.** On the benchmark suite, locally
+generated requirements pass all rules first try **50%** of the time and are
+valid after self-correction **93%** of the time. That 43-point lift is what the
+validation layer buys.
 
-<details>
-<summary>Running the servers by hand</summary>
-
-```bash
-# terminal 1
-cd backend
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# terminal 2 — only after the API answers on :8000
-cd frontend
-npm install
-npm run dev
-```
-
-</details>
+Diagrams get the same treatment with different rules. Validation there is
+referential integrity, and repair re-prompts the whole graph rather than one
+node. Diagram generation also reads whatever requirements you have kept, so the
+design follows from them rather than being drafted alongside them. On a ground
+station example this took the proposed trace links from 5 to 10 and dropped the
+blocks satisfying no requirement from 7 to 1.
 
 ---
 
-## Traceability
+## Shortcomings in the source material, and what was done about them
 
-Requirements and design elements are only useful together. The app links them
-with SysML relationships such as `satisfy`, `refine`, `verify`. It then computes the
-two findings that matter in a design review:
+The MAPPy papers name specific weaknesses in their own evaluation. Those are the
+most useful thing in the source material, because they say where the work
+actually was.
 
-- **Uncovered requirements** — agreed, written down, and allocated to nothing
-  that builds them. Only `satisfy` counts here; refining or verifying a
-  requirement does not mean anything fulfils it.
-- **Orphan blocks** — design elements that satisfy no stated requirement.
-  Either a requirement is missing, or the element is unjustified scope.
+| Named weakness | What this build does |
+|---|---|
+| Malformed output, distinct from bad content | Prevented and recovered, see below |
+| Which rule broke, not just pass or fail | Every violation carries a stable id, characteristic, and offending text |
+| Latency per call | Captured on every `LLMResult`, shown per row and per provider |
+| Harmful or biased content | Reframed as `MM-R10`, an advisory, see below |
+| Controlled model comparison | **Head to head** runs one prompt through every configured model back to back |
+| Limited to requirements and blocks | Not addressed, same limitation here |
 
-The model proposes the matrix and a human confirms it. Suggestions are
-validated against the real id sets before they are shown, so a hallucinated
-link is dropped rather than surfaced, and nothing is written to the model until
-the engineer accepts it. Asked to link requirements about a launch vehicle to a
-diagram of an unrelated system, it correctly proposed nothing.
+**Malformed output.** Their promptfoo results report responses that "include
+text before table formatting", meaning the model wrapped its array in prose and
+broke the parser. That is a different failure from a rule violation and needs a
+different fix, because the content may be fine and only the envelope is wrong.
+Handled in two layers. *Prevention:* Ollama runs with `format="json"`, which is
+a hard guarantee, and the Anthropic path has no such switch so `_extract_json`
+strips a markdown fence and uses `raw_decode` to take the first complete value
+and discard trailing commentary. *Recovery:* when parsing still fails,
+`_parse_with_recovery` re-prompts for the envelope alone, bounded at two
+attempts and counted in the metrics. Previously one stray sentence of preamble
+discarded every requirement in the response.
+
+**Harmful or biased content.** The 2023 deck lists this as a limitation of the
+underlying model that MAPPy has to work around, and the source material does not
+show it being addressed. A profanity or toxicity keyword list over satellite
+requirements would be box-ticking. The version built here treats bias as the
+systems-engineering problem it actually is: a requirement that fixes a human
+capability (a lifting weight, a reach, an acuity, "unaided") without naming an
+anthropometric, ergonomic, or accessibility standard has silently decided who is
+allowed to operate the system. `MM-R10` flags that, and two design decisions
+matter more than the check itself:
+
+- It is an **advisory, not a rule failure**. It never gates whether a
+  requirement counts as clean.
+- It is **never sent to the repair loop**. A model told to fix an exclusionary
+  constraint will delete it, and silently dropping an accessibility
+  consideration is worse than stating one badly. The check objects to the limit
+  being unjustified, not to the limit existing, so naming a standard clears it.
+  That is a judgement for a person, which is why `ADVISORY_RULES` is kept
+  separate from `RULES`.
+
+**Head to head**, measured on a satellite ground station prompt:
+
+| Model | Requirements | First pass | Valid after repair | Latency | Cost |
+|---|---|---|---|---|---|
+| claude-haiku-4-5 | 12 | 17% | 100% | 30.5s | $0.0195 |
+| llama3.1:8b | 1 | 0% | 100% | 16.4s | free |
+
+Read the first two columns together. Output volume differs by an order of
+magnitude and neither model wrote a conformant requirement on the first pass.
+What the repair loop buys is that both land in the same place.
+
+Scoping to requirements and blocks was deliberate, since extending it touches
+the schema, the validator, and the UI together. Their roadmap items,
+relationship-gap detection, test case generation, and automatic diagram
+assembly, are not built either, and are not claimed.
 
 ---
 
 ## Evaluation
 
-Every generation records tokens in/out, LLM call count (including each repair
-attempt), wall clock, items produced, first-pass conformance, and final
+Every generation records tokens in and out, LLM call count including each repair
+attempt, wall clock, items produced, first-pass conformance, and final
 conformance. Cost is derived at read time from stored token counts, so
 correcting a published rate reprices history rather than leaving stale figures
 baked into old records.
 
-A fixed golden set of six self-created prompts re-runs on demand, so a prompt or model change
-is compared on identical inputs. We can change these as needed to ensure proper tailoring:
+A fixed golden set of six prompts, three for requirements and three for
+diagrams, re-runs on demand, so a prompt or model change is compared on
+identical inputs:
 
 ```bash
 curl -X POST localhost:8000/evaluations/run-suite \
@@ -309,24 +286,40 @@ Same six prompts, both providers:
 
 The local model is slower and less thorough, but self-correction closes most of
 the conformance gap. For controlled documents the deciding factor is usually
-data residency rather than the sub-cent cost difference. The local model is also 
-what my machine could computationally do in the scope of the weekend.
+data residency rather than the sub-cent cost difference. The local model is also
+what my machine could computationally do in the scope of a weekend.
 
-### Semantic review: what the rule engine cannot see
+**Semantic review.** The rule engine is lexical. It verifies a requirement is
+*written* well, it cannot tell you whether the requirement bundles three needs
+into one sentence, or states something no test could falsify. A second model
+scores the same requirements on criteria a regex cannot reach and the two
+signals are cross-tabulated.
 
-The rule engine is lexical. It verifies a requirement is *written* well; it
-cannot tell you whether the requirement bundles three needs into one sentence,
-or states something no test could falsify. A second model scores the same
-requirements on criteria a regex cannot reach and the two signals are
-cross-tabulated.
+**What the evals caught.** Their first run exposed a silent failure that manual
+testing had missed. The requirements parser assumed a JSON array, but the model
+sometimes returns a single bare requirement object, and the whole generation was
+being discarded. Two of three requirements prompts were producing nothing. The
+fix was four lines, and the same suite verified it.
 
-### What the evals caught
+---
 
-Their first run exposed a silent failure that manual testing had missed: the
-requirements parser assumed a JSON array, but the model sometimes returns a
-single bare requirement object, and the whole generation was being discarded.
-Two of three requirements prompts were producing nothing. The fix was four
-lines; the same suite verified it.
+## Traceability
+
+Requirements and design elements are only useful together. The app links them
+with SysML relationships such as `satisfy`, `refine`, and `verify`, then
+computes the two findings that matter in a design review:
+
+- **Uncovered requirements**, agreed, written down, and allocated to nothing
+  that builds them. Only `satisfy` counts here, since refining or verifying a
+  requirement does not mean anything fulfils it.
+- **Orphan blocks**, design elements that satisfy no stated requirement. Either
+  a requirement is missing, or the element is unjustified scope.
+
+The model proposes the matrix and a human confirms it. Suggestions are validated
+against the real id sets before they are shown, so a hallucinated link is
+dropped rather than surfaced, and nothing is written to the model until the
+engineer accepts it. Asked to link requirements about a launch vehicle to a
+diagram of an unrelated system, it correctly proposed nothing.
 
 ---
 
@@ -337,8 +330,8 @@ backend/app/
   llm.py              provider router + shared result type
   ollama_client.py    local provider
   anthropic_client.py hosted provider
-  rag.py              chunking, embedding, scoring -- no database dependency
-  knowledge.py        wires rag.py to storage; owns when the index is rebuilt
+  rag.py              chunking, embedding, scoring, no database dependency
+  knowledge.py        wires rag.py to storage, owns when the index is rebuilt
   prompts.py          system instructions, retrieval guidance, repair prompts
   rules.py            INCOSE rule engine (8 checks + duplicates + 1 advisory)
   diagram_rules.py    SysML structural/referential validation
@@ -355,8 +348,10 @@ frontend/src/
                       BlockDiagram, EvaluationsPanel, TraceabilityPanel,
                       ModelElementsPanel, ActivityLog
   DiagramPage.jsx     standalone full-size diagram route
+demo_documents/       a document to upload during a demo
 scripts/
   dev.sh              setup + start both servers, wait until each answers
+  reset.sh            clear a demo run
   stop.sh             stop both servers
 ```
 
@@ -372,21 +367,21 @@ cd frontend && npx oxlint src/ && npx vite build
 Stated plainly, because they bound what this is useful for:
 
 - **Nothing here establishes that a requirement is _correct_.** The rule engine
-  checks how it is written. The semantic reviewer goes further — it catches
-  requirements that bundle several needs or cannot be objectively tested — but
-  the reviewer is itself a language model, not ground truth: it is
+  checks how it is written. The semantic reviewer goes further, catching
+  requirements that bundle several needs or cannot be objectively tested, but
+  the reviewer is itself a language model, not ground truth. It is
   non-deterministic, it can be wrong, and it has no access to the stakeholder
   need the requirement is supposed to serve. Treat its scores as a prioritised
   reading list for a human, not a gate. A human promotes each requirement into
-  the model; the tool removes conformance drudgery, not the engineer.
+  the model. The tool removes conformance drudgery, not the engineer.
 - **Trace links are proposed, not derived.** The model infers them from wording
   overlap between a requirement and a block description. Hallucinated ids are
-  dropped before display, but a plausible-looking wrong link will be shown —
+  dropped before display, but a plausible-looking wrong link will be shown,
   which is why nothing persists until a human accepts it.
-- **The 40-word minimum is a proxy, not a literal INCOSE rule** — a cheap stand-in
-  for completeness. The vague-terms, absolutes, and escape-clause checks map far
-  more directly to the guidance. All the term lists are plain data at the top of
-  `rules.py` so a systems engineer can tune them.
+- **The 40-word minimum is a proxy, not a literal INCOSE rule,** a cheap
+  stand-in for completeness. The vague-terms, absolutes, and escape-clause
+  checks map far more directly to the guidance. All the term lists are plain
+  data at the top of `rules.py` so a systems engineer can tune them.
 - **No SysML interchange.** Output is application JSON, not XMI, so it does not
   round-trip into Cameo or Rhapsody. The MBSE side of the retrieval index is
   therefore the model *this tool* builds, not a parsed Cameo model. Blocks are
@@ -398,9 +393,9 @@ Stated plainly, because they bound what this is useful for:
   of it and the prompt tells the model to ignore passages that do not bear on
   the question, but neither is a guarantee. Every answer names the passages it
   used so the engineer can check rather than trust.
-- **Documents must be UTF-8 text.** `.txt` and `.md` are parsed; PDF and Word
+- **Documents must be UTF-8 text.** `.txt` and `.md` are parsed, PDF and Word
   are rejected with a message rather than indexed as mojibake.
-- **Duplicate detection is string similarity**, so it catches restatements, not
+- **Duplicate detection is string similarity,** so it catches restatements, not
   two differently-worded requirements that mean the same thing.
-- **Local SQLite database** — single user, no auth. Everything goes through
+- **Local SQLite database,** single user, no auth. Everything goes through
   `storage.py`, so pointing it at a server database touches one module.
