@@ -214,21 +214,21 @@ equivalent switch, `_extract_json` strips a markdown fence and uses
 `_parse_with_recovery` asks again for the envelope alone, bounded at two
 attempts and counted in the metrics.
 
-*Future Implementation* the recovery spends a whole extra call on what is usually a
-formatting slip. Repairing the common cases locally before paying for a call
-would probably handle most of them, and I have not measured how often the
-retry is the thing that actually saves a batch.
+*Future Implementation:* the recovery spends a whole extra call on what is
+usually a formatting slip. Repairing the common cases locally before paying for
+a call would probably handle most of them, and I have not measured how often
+the retry is the thing that actually saves a batch.
 
 **Which rule broke, rather than pass or fail.** Every violation carries a
 stable id, the INCOSE quality characteristic it serves, and the offending
 text, so a failure says what to change. That is also what makes the targeted
 retry possible, since the repair prompt can name the specific rules broken.
 
-*Future Implementation* ten checks is a starting set, and the term lists inside them are
-my reading of the guidance rather than anything authoritative. A systems
-engineer would want to tune both, which is why they are plain data at the top
-of `rules.py`, but tuning them through a config rather than a code edit is the
-obvious next step.
+*Future Implementation:* ten checks is a starting set, and the term lists
+inside them are my reading of the guidance rather than anything authoritative.
+A systems engineer would want to tune both, which is why they are plain data at
+the top of `rules.py`, but tuning them through a config rather than a code edit
+is the obvious next step.
 
 **Harmful or biased content.** The 2023 deck lists this as a limitation of the
 underlying model, and I could not find it addressed in the material I had. A
@@ -249,11 +249,11 @@ around it matter more than the check:
   it. That is a judgement for a person, which is why `ADVISORY_RULES` is kept
   separate from `RULES`.
 
-*Future Implementation* this is my interpretation of a one-line limitation in a slide
-deck, and it may not be what they meant by it. The check is also a keyword
-heuristic underneath, so it will miss an exclusionary requirement phrased
-without the words it looks for. I would want to know whether the framing is
-even the right one before building on it.
+*Future Implementation:* this is my interpretation of a one-line limitation in
+a slide deck, and it may not be what they meant by it. The check is also a
+keyword heuristic underneath, so it will miss an exclusionary requirement
+phrased without the words it looks for. I would want to know whether the
+framing is even the right one before building on it.
 
 **Controlled model comparison.** The provider table elsewhere in this README is
 assembled from whatever happens to be in the evaluation log, which compares
@@ -270,16 +270,17 @@ Output volume differs by an order of magnitude and neither model wrote a
 conformant requirement on the first pass, but both end up in the same place
 after repair.
 
-*Future Implementation* this is one prompt and one run per model. The inputs are
-controlled, but the numbers still move when you re-run it. Several prompts and
-several runs per cell would be needed before treating any of this as a
+*Future Implementation:* this is one prompt and one run per model. The inputs
+are controlled, but the numbers still move when you re-run it. Several prompts
+and several runs per cell would be needed before treating any of this as a
 benchmark.
 
 **What is not addressed.** Scope stops at requirements and blocks, since
 extending it touches the schema, the validator, and the UI together. Their
 roadmap items, relationship-gap detection, test case generation, and
-automatic diagram assembly, are not built. Neither is anything on the integration side,
-which is most of what makes MAPPy a tool rather than a pipeline.
+automatic diagram assembly, are not built. Neither is anything on the
+integration side, which is most of what makes MAPPy a tool rather than a
+pipeline.
 
 ---
 
