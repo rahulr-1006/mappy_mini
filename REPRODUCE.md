@@ -33,12 +33,13 @@ We can clear the evaluation logs, in actual production it can track metrics and 
 
 ## The golden suite table
 
-Reproduces the six-prompt table under **Evaluation**, and the 50% / 93% figures
-quoted under **Why this is more than one LLM call**.
+This reproduces the six-prompt table under **Evaluation**, and the 50% / 93% figures
+quoted in the README.
 
 Six fixed prompts, three for requirements and three for diagrams, defined in
 `backend/app/eval_suite.py`. They are hardcoded so a prompt change or a model
-change is compared on identical inputs.
+change is compared on identical inputs. This was once again mainly for the sake 
+of the demo and for reproducibility.
 
 ```bash
 curl -X POST localhost:8000/evaluations/run-suite \
@@ -46,7 +47,7 @@ curl -X POST localhost:8000/evaluations/run-suite \
 ```
 
 Expect this to take several minutes on a local 8B model. It runs six real
-generations sequentially, it is not mocked.
+generations sequentially.
 
 Read the figures off `suite_summary`:
 
