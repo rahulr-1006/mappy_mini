@@ -214,7 +214,7 @@ equivalent switch, `_extract_json` strips a markdown fence and uses
 `_parse_with_recovery` asks again for the envelope alone, bounded at two
 attempts and counted in the metrics.
 
-*Still open:* the recovery spends a whole extra call on what is usually a
+*Future Implementation* the recovery spends a whole extra call on what is usually a
 formatting slip. Repairing the common cases locally before paying for a call
 would probably handle most of them, and I have not measured how often the
 retry is the thing that actually saves a batch.
@@ -224,7 +224,7 @@ stable id, the INCOSE quality characteristic it serves, and the offending
 text, so a failure says what to change. That is also what makes the targeted
 retry possible, since the repair prompt can name the specific rules broken.
 
-*Still open:* ten checks is a starting set, and the term lists inside them are
+*Future Implementation* ten checks is a starting set, and the term lists inside them are
 my reading of the guidance rather than anything authoritative. A systems
 engineer would want to tune both, which is why they are plain data at the top
 of `rules.py`, but tuning them through a config rather than a code edit is the
@@ -249,7 +249,7 @@ around it matter more than the check:
   it. That is a judgement for a person, which is why `ADVISORY_RULES` is kept
   separate from `RULES`.
 
-*Still open:* this is my interpretation of a one-line limitation in a slide
+*Future Implementation* this is my interpretation of a one-line limitation in a slide
 deck, and it may not be what they meant by it. The check is also a keyword
 heuristic underneath, so it will miss an exclusionary requirement phrased
 without the words it looks for. I would want to know whether the framing is
@@ -270,7 +270,7 @@ Output volume differs by an order of magnitude and neither model wrote a
 conformant requirement on the first pass, but both end up in the same place
 after repair.
 
-*Still open:* this is one prompt and one run per model. The inputs are
+*Future Implementation* this is one prompt and one run per model. The inputs are
 controlled, but the numbers still move when you re-run it. Several prompts and
 several runs per cell would be needed before treating any of this as a
 benchmark.
