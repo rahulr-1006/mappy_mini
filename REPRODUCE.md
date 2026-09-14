@@ -129,7 +129,3 @@ against the rates in `REFERENCE_RATES` in `backend/app/evaluation.py`:
 | claude-haiku-4-5 | 1.00 | 5.00 |
 | claude-sonnet-5 | 2.00 | 10.00 |
 | claude-opus-5 | 5.00 | 25.00 |
-
-Deriving cost at read time rather than storing it is deliberate: correcting a
-rate reprices history instead of leaving stale figures baked into old records.
-Local generations are free and record a cost of zero.
